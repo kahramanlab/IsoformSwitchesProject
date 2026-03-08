@@ -1,0 +1,431 @@
+---
+title: "ExampleCasesForManuscript"
+author: "Tülay Karakulak"
+date: "2025-02-28"
+output: html_document
+---
+
+# Figure 3 - Exon and Intron Structures and Expression of Example Cases
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(rmarkdown)
+library(harmony)
+library(Matrix)
+library(cowplot)
+library(RColorBrewer)
+library(viridis)
+library(ggpubr)
+set.seed(12345)
+```
+
+```{r ReadExpFiles}
+# Mel
+Mel_TuPro_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
+Mel_GTEx_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/gtex_tpm_NR.RDS')
+Mel_TCGA_met_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_metastatic_tpm_NR.RDS')
+Mel_TCGA_pri_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_metastatic_tpm_NR.RDS')
+
+
+# Ov
+Ov_TuPro_pri_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_primary.RDS')
+Ov_TuPro_met_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_metastatic.RDS')
+Ov_GTEx_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/gtex_tpm_NR.RDS')
+Ov_TCGA_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
+
+
+# AML
+# Ov
+AML_TuPro_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
+AML_TCGA_met_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
+AML_GTEx_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/gtex_tpm_NR.RDS')
+
+```
+
+
+
+```{r readdMDTs}
+dMDTs_Ovary_tcga <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/CorrectedStat/TCGA_GTEx_ov_Switch.RDS')
+
+dMDT_Ovary_tuPro_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/CorrectedStat/Switches_TuPro_Pri_GTEx.RDS')
+
+dMDT_Ovary_tuPro_metastatis <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/CorrectedStat/Switches_TuPro_Met_GTEx.RDS')
+
+dMDT_Melanoma_tcga_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/CorrectedStat/Switches_TCGA_Pri_GTEx.RDS')
+
+dMDT_Melanoma_tcga_metastatis <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/CorrectedStat/Switches_TCGA_Met_GTEx.RDS')
+
+dMDT_Melanoma_tupro <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/CorrectedStat/Switches_TuPro_GTEx.RDS')
+
+dMDT_AML_tcga <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/Switches/CorrectedStat/Switches_TCGA_GTEx.RDS')
+
+dMDT_AML_tuPro <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/Switches/CorrectedStat/Switches_TuPro_GTEx.RDS')
+```
+
+
+```{r checkExpressions}
+# function
+plotENSTExp <- function(dMDT, MDT, GTEX_exp, TCGA_exp, TuPro_exp) {
+  
+  dmdt_gtex <- data.frame(as.vector(unlist(GTEX_exp[GTEX_exp$ENST == dMDT, 3:ncol(GTEX_exp)])))
+  canonical_gtex <- data.frame(as.vector(unlist(GTEX_exp[GTEX_exp$ENST == MDT, 3:ncol(GTEX_exp)])))
+  
+  dmdt_tcga <- data.frame(as.vector(unlist(TCGA_exp [TCGA_exp$ENST == dMDT, 3:ncol(TCGA_exp)])))
+  canonical_tcga <- data.frame(as.vector(unlist(TCGA_exp [TCGA_exp$ENST == MDT, 3:ncol(TCGA_exp)])))
+  
+  dmdt_tp <- data.frame(as.vector(unlist(TuPro_exp[TuPro_exp$ENST == dMDT, 3:ncol(TuPro_exp)])))
+  canonical_tp <- data.frame(as.vector(unlist(TuPro_exp[TuPro_exp$ENST == MDT, 3:ncol(TuPro_exp)])))
+  
+  colnames(dmdt_tp) <- 'Exp'
+  colnames(canonical_tp) <- 'Exp'
+  colnames(dmdt_tcga) <- 'Exp'
+  colnames(canonical_tcga) <- 'Exp'
+  colnames(dmdt_gtex) <- 'Exp'
+  colnames(canonical_gtex) <- 'Exp'
+  
+  data_all <- data.frame(data = c(rep('canonical_gtex', length(canonical_gtex$Exp)), rep('dmdt_gtex', length(dmdt_gtex$Exp)), rep('canonical_tcga' , length(canonical_tcga$Exp)), rep('dmdt_tcga', length(dmdt_tcga$Exp)), rep('canonical_tp', length(canonical_tp$Exp)), rep('dmdt_tp', length(dmdt_tp$Exp))), expression = c(canonical_gtex$Exp, dmdt_gtex$Exp, canonical_tcga$Exp, dmdt_tcga$Exp,  canonical_tp$Exp, dmdt_tp$Exp))
+  
+  
+  return(data_all)
+  
+}
+```
+
+
+```{r checkExpressions2}
+# function
+plotENSTExp2 <- function(dMDT, MDT, GTEX_exp, TCGA_exp, TuPro_exp, dMDT_TCGA, dMDT_TuPro) {
+  
+  dmdt_gtex <- data.frame(as.vector(unlist(GTEX_exp[GTEX_exp$ENST == dMDT, 3:ncol(GTEX_exp)])))
+  canonical_gtex <- data.frame(as.vector(unlist(GTEX_exp[GTEX_exp$ENST == MDT, 3:ncol(GTEX_exp)])))
+  
+  dmdt_tcga <- data.frame(as.vector(unlist(TCGA_exp[TCGA_exp$ENST == dMDT, colnames(TCGA_exp) %in% dMDT_TCGA[dMDT_TCGA$dMDT == dMDT, 'SampleID']])))
+  
+  canonical_tcga <- data.frame(as.vector(unlist(TCGA_exp[TCGA_exp$ENST == MDT, colnames(TCGA_exp) %in% dMDT_TCGA[dMDT_TCGA$dMDT == dMDT, 'SampleID']])))
+  
+  dmdt_tp <- data.frame(as.vector(unlist(TuPro_exp[TuPro_exp$ENST == dMDT, colnames(TuPro_exp) %in% dMDT_TuPro[dMDT_TuPro$dMDT == dMDT, 'SampleID']])))
+  
+  canonical_tp <- data.frame(as.vector(unlist(TuPro_exp[TuPro_exp$ENST == MDT, colnames(TuPro_exp) %in% dMDT_TuPro[dMDT_TuPro$dMDT == dMDT, 'SampleID']])))
+
+  dmdt_tp$cohort <- 'TuPro'
+  dmdt_tp$data <- 'TuPro_dMDT'
+  canonical_tp$cohort <- 'TuPro'
+  canonical_tp$data <- 'TuPro_MDT'
+  dmdt_tcga$cohort <- 'TCGA'
+  dmdt_tcga$data <- 'TCGA_dMDT'
+  canonical_tcga$cohort <- 'TCGA'
+  canonical_tcga$data <- 'TCGA_MDT'
+  dmdt_gtex$cohort <- 'GTEx'
+  dmdt_gtex$data <- 'GTEx_dMDT'
+  canonical_gtex$cohort <- 'GTEx'
+  canonical_gtex$data <- 'GTEx_MDT'
+  
+  colnames(dmdt_tp) <- c('Exp', 'Cohort', 'data')
+  colnames(canonical_tp) <- c('Exp', 'Cohort', 'data')
+  colnames(dmdt_tcga) <- c('Exp', 'Cohort', 'data')
+  colnames(canonical_tcga) <- c('Exp', 'Cohort', 'data')
+  colnames(dmdt_gtex) <- c('Exp', 'Cohort', 'data')
+  colnames(canonical_gtex) <- c('Exp', 'Cohort', 'data')
+ 
+  
+  data_all <- rbind(dmdt_tp, canonical_tp, dmdt_tcga, canonical_tcga, dmdt_gtex, canonical_gtex)
+  
+  return(data_all)
+  
+}
+
+```
+
+```{r checkExpression}
+# PDCD6 in Ovary
+
+#PDCD6 <- plotENSTExp('ENST00000356080', 'ENST00000277900', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp)
+#ggplot(PDCD6, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
+
+ADD3_dMDTspec <- plotENSTExp2('ENST00000356080', 'ENST00000277900', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp, dMDTs_Ovary_tcga, dMDT_Ovary_tuPro_metastatis)
+
+ADD3_dMDTspec$data <- factor(ADD3_dMDTspec$data, levels = c('GTEx_MDT', 'GTEx_dMDT', 'TCGA_MDT', 'TCGA_dMDT', 'TuPro_MDT', 'TuPro_dMDT'))
+
+ggplot(ADD3_dMDTspec, aes(x=data, y=Exp, fill=Cohort)) + geom_boxplot() + theme_classic()
+
+```
+
+```{r checkExpression}
+# PDCD6 in Melanoma
+
+#PDCD6 <- plotENSTExp('ENST00000614778', 'ENST00000264933', Mel_GTEx_exp, Mel_TCGA_met_exp, Mel_TuPro_exp)
+#ggplot(PDCD6, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
+
+PDCD6_dMDTspec <- plotENSTExp2('ENST00000614778', 'ENST00000264933', Mel_GTEx_exp, Mel_TCGA_met_exp, Mel_TuPro_exp, dMDT_Melanoma_tcga_metastatis, dMDT_Melanoma_tupro)
+
+PDCD6_dMDTspec$data <- factor(PDCD6_dMDTspec$data, levels = c('GTEx_MDT', 'GTEx_dMDT', 'TCGA_MDT', 'TCGA_dMDT', 'TuPro_MDT', 'TuPro_dMDT'))
+
+ggplot(PDCD6_dMDTspec, aes(x=data, y=Exp, fill=Cohort)) + geom_boxplot() + theme_classic()
+```
+
+
+# LEG8 in AML
+```{r checkExpression3}
+
+# USP34
+USP_dMDTspec <- plotENSTExp2('ENST00000398571', 'ENST00000436269', AML_GTEx_exp, AML_TCGA_met_exp, AML_TuPro_exp, dMDT_AML_tcga, dMDT_AML_tuPro)
+
+USP_dMDTspec$data <- factor(USP_dMDTspec$data, levels = c('GTEx_MDT', 'GTEx_dMDT', 'TCGA_MDT', 'TCGA_dMDT', 'TuPro_MDT', 'TuPro_dMDT'))
+ggplot(USP_dMDTspec, aes(x=data, y=Exp, fill=Cohort)) + geom_boxplot() + theme_classic()
+
+```
+
+# SLC44A2 in Ovary
+```{r slc44a2}
+#SLC44A2 <- plotENSTExp('ENST00000335757', 'ENST00000407327', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp)
+#ggplot(SLC44A2, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
+
+
+SLC44A2_dMDTspec <- plotENSTExp2('ENST00000335757', 'ENST00000407327', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp, dMDTs_Ovary_tcga, dMDT_Ovary_tuPro_metastatis)
+#ggplot(SLC44A2_dMDTspec, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
+
+SLC44A2_dMDTspec$data <- factor(SLC44A2_dMDTspec$data, levels = c('GTEx_MDT', 'GTEx_dMDT', 'TCGA_MDT', 'TCGA_dMDT', 'TuPro_MDT', 'TuPro_dMDT'))
+
+ggplot(SLC44A2_dMDTspec, aes(x=data, y=Exp, fill=Cohort)) + geom_boxplot() + theme_classic()
+```
+
+```{r DomainStructure}
+library(ggtranscript)
+options(timeout = 300)
+gtf_path <- file.path(tempdir(), "Homo_sapiens.GRCh38.104.chr.gtf.gz")
+download.file(
+    paste0(
+        "http://ftp.ensembl.org/pub/release-104/gtf/homo_sapiens/",
+        "Homo_sapiens.GRCh38.104.chr.gtf.gz"
+    ),
+    destfile = gtf_path
+)
+gtf <- rtracklayer::import(gtf_path)
+
+class(gtf)
+
+gtf <- gtf %>% dplyr::as_tibble()
+```
+
+
+```{r ADD3_structure}
+gene_of_interest <- "ADD3"
+
+ADD3_annotation_from_gtf <- gtf %>% 
+  dplyr::filter(
+    !is.na(gene_name), 
+    gene_name == gene_of_interest
+  ) 
+
+# extract the required annotation columns
+ADD3_annotation_from_gtf2 <- ADD3_annotation_from_gtf %>% 
+  dplyr::select(
+    seqnames,
+    start,
+    end,
+    strand,
+    type,
+    gene_name,
+    transcript_name,
+    transcript_biotype
+  )
+
+ADD3_exons <- ADD3_annotation_from_gtf2[ADD3_annotation_from_gtf2$transcript_name %in% c('ADD3-202', 'ADD3-201'),] %>% dplyr::filter(type == "exon")
+
+ADD3_rescaled <- shorten_gaps(
+  exons = ADD3_exons, 
+  to_intron(ADD3_exons, "transcript_name"), 
+  group_var = "transcript_name"
+  )
+
+ADD3_rescaled_exons <- ADD3_rescaled %>% dplyr::filter(type == "exon") 
+ADD3_rescaled_introns <- ADD3_rescaled %>% dplyr::filter(type == "intron") 
+
+ADD3_rescaled_exons_fig <- ADD3_rescaled_exons %>% 
+    ggplot(aes(
+        xstart = start,
+        xend = end,
+        y = transcript_name
+    )) +
+    geom_range(
+        aes(fill = transcript_biotype)
+    ) +
+    geom_intron(
+        data = ADD3_rescaled_introns,
+        aes(strand = strand), 
+        arrow.min.intron.length = 300
+    ) + theme_classic()
+
+
+ADD3_rescaled_exons_fig
+```
+
+
+
+```{r ADD3_structure}
+gene_of_interest <- "PDCD6"
+
+PDCD6_annotation_from_gtf <- gtf %>% 
+  dplyr::filter(
+    !is.na(gene_name), 
+    gene_name == gene_of_interest
+  ) 
+
+# extract the required annotation columns
+PDCD6_annotation_from_gtf2 <- PDCD6_annotation_from_gtf %>% 
+  dplyr::select(
+    seqnames,
+    start,
+    end,
+    strand,
+    type,
+    gene_name,
+    transcript_name,
+    transcript_biotype
+  )
+
+PDCD6_exons <- PDCD6_annotation_from_gtf2[PDCD6_annotation_from_gtf2$transcript_name %in% c('PDCD6-211', 'PDCD6-201'),] %>% dplyr::filter(type == "exon")
+
+PDCD6_rescaled <- shorten_gaps(
+  exons = PDCD6_exons, 
+  to_intron(PDCD6_exons, "transcript_name"), 
+  group_var = "transcript_name"
+  )
+
+PDCD6_rescaled_exons <- PDCD6_rescaled %>% dplyr::filter(type == "exon") 
+PDCD6_rescaled_introns <- PDCD6_rescaled %>% dplyr::filter(type == "intron") 
+
+PDCD6_rescaled_exons_fig <- PDCD6_rescaled_exons %>% 
+    ggplot(aes(
+        xstart = start,
+        xend = end,
+        y = transcript_name
+    )) +
+    geom_range(
+        aes(fill = transcript_biotype)
+    ) +
+    geom_intron(
+        data = PDCD6_rescaled_introns,
+        aes(strand = strand), 
+        arrow.min.intron.length = 300
+    ) + theme_classic()
+
+
+PDCD6_rescaled_exons_fig
+```
+
+
+```{r slc44a2_structure}
+gene_of_interest <- "SLC44A2"
+
+SLC44A2_annotation_from_gtf <- gtf %>% 
+  dplyr::filter(
+    !is.na(gene_name), 
+    gene_name == gene_of_interest
+  ) 
+
+# extract the required annotation columns
+SLC44A2_annotation_from_gtf2 <- SLC44A2_annotation_from_gtf %>% 
+  dplyr::select(
+    seqnames,
+    start,
+    end,
+    strand,
+    type,
+    gene_name,
+    transcript_name,
+    transcript_biotype
+  )
+
+SLC44A2_exons <- SLC44A2_annotation_from_gtf2[SLC44A2_annotation_from_gtf2$transcript_name %in% c('SLC44A2-201', 'SLC44A2-202'),] %>% dplyr::filter(type == "exon")
+
+SLC44A2_rescaled <- shorten_gaps(
+  exons = SLC44A2_exons, 
+  to_intron(SLC44A2_exons, "transcript_name"), 
+  group_var = "transcript_name"
+  )
+
+SLC44A2_rescaled_exons <- SLC44A2_rescaled %>% dplyr::filter(type == "exon") 
+SLC44A2_rescaled_introns <- SLC44A2_rescaled %>% dplyr::filter(type == "intron") 
+
+SLC44A2_rescaled_exons_fig <- SLC44A2_rescaled_exons %>% 
+    ggplot(aes(
+        xstart = start,
+        xend = end,
+        y = transcript_name
+    )) +
+    geom_range(
+        aes(fill = transcript_biotype)
+    ) +
+    geom_intron(
+        data = SLC44A2_rescaled_introns,
+        aes(strand = strand), 
+        arrow.min.intron.length = 300
+    ) + theme_classic()
+
+SLC44A2_rescaled_exons_fig
+```
+
+
+```{r USP34_structure}
+gene_of_interest <- "USP34"
+
+USP34_annotation_from_gtf <- gtf %>% 
+  dplyr::filter(
+    !is.na(gene_name), 
+    gene_name == gene_of_interest
+  ) 
+
+# extract the required annotation columns
+USP34_annotation_from_gtf2 <- USP34_annotation_from_gtf %>% 
+  dplyr::select(
+    seqnames,
+    start,
+    end,
+    strand,
+    type,
+    gene_name,
+    transcript_name,
+    transcript_biotype
+  )
+
+USP34_exons <- USP34_annotation_from_gtf2[USP34_annotation_from_gtf2$transcript_name %in% c('USP34-203', 'USP34-201'),] %>% dplyr::filter(type == "exon")
+
+USP34_rescaled <- shorten_gaps(
+  exons = USP34_exons, 
+  to_intron(USP34_exons, "transcript_name"), 
+  group_var = "transcript_name"
+  )
+
+USP34_rescaled_exons <- USP34_rescaled %>% dplyr::filter(type == "exon") 
+USP34_rescaled_introns <- USP34_rescaled %>% dplyr::filter(type == "intron") 
+
+USP34_rescaled_exons_fig <- USP34_rescaled_exons %>% 
+    ggplot(aes(
+        xstart = start,
+        xend = end,
+        y = transcript_name
+    )) +
+    geom_range(
+        aes(fill = transcript_biotype)
+    ) +
+    geom_intron(
+        data = USP34_rescaled_introns,
+        aes(strand = strand), 
+        arrow.min.intron.length = 300
+    ) + theme_classic()
+
+
+
+USP34_rescaled_exons_fig
+
+# ENST00000436269 mdt
+#ENST00000398571 dMDT
+```

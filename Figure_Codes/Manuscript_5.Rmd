@@ -25,7 +25,7 @@ library(ggvenn)
 ```
 
 ```{r read_output_diann}
-Main_output <- read_delim('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Proteomics/Melanoma/DIANN/Main_Report.tsv', delim = '\t', col_names = TRUE)
+Main_output <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/Melanoma/Main_Report.tsv', delim = '\t', col_names = TRUE)
 head(Main_output)
 Main_output <- Main_output %>% filter(!str_detect(Genes, ";"))
 head(Main_output)
@@ -34,12 +34,12 @@ dim(Main_output)
 
 
 ```{r read_MDTs}
-Switches_Melanoma <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/CorrectedStat/Switches_TuPro_GTEx.RDS')
+Switches_Melanoma <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TuPro_GTEx.RDS')
 ```
 
 
 ```{r merge_dMDTs_ENSPs}
-ensg_enst_ensp_apris_v104 <-  read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/GTExSuitibility/Ensembl/mart_export-2May2023.txt', sep='\t')
+ensg_enst_ensp_apris_v104 <-  read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Biomart/mart_export-2May2023.txt', sep='\t')
 head(ensg_enst_ensp_apris_v104)
 ```
 
@@ -149,22 +149,16 @@ dia_each_sample_output <- Main_output_filtered_dMDT[, c(2,4)] %>% dplyr::group_b
 
 dia_each_sample_output_4 <- Main_output_filtered_dMDT_exc_MDT_exc_ClassI_sepRows[, c(2,4)] %>% dplyr::group_by(Run) %>% dplyr::mutate(Protein_IDS_in_Sample = paste(Protein.Ids, collapse = ',')) %>% dplyr::select(Run, Protein_IDS_in_Sample) %>% dplyr::distinct()
 
-#rna_row_names <- do.call(rbind, strsplit(rna_each_sample_output$SampleID, '/'))[,2]
-
 rna_row_names3 <- do.call(rbind, strsplit(rna_each_sample_output_3$SampleID, '/'))[,2]
 rna_row_names4 <- do.call(rbind, strsplit(rna_each_sample_output_4$SampleID, '/'))[,2]
 dia_row_names <- do.call(rbind, strsplit(dia_each_sample_output$Run, '-'))[,1]
 dia_row_names4 <- do.call(rbind, strsplit(dia_each_sample_output_4$Run, '-'))[,1]
-
-
-#rna_each_sample_output['Samples'] <- rna_row_names
 
 rna_each_sample_output_3['Samples'] <- rna_row_names3
 rna_each_sample_output_4['Samples'] <- rna_row_names4
 dia_each_sample_output['Samples'] <- dia_row_names
 dia_each_sample_output_4['Samples'] <- dia_row_names4
 
-#rna_each_sample_output2 <- rna_each_sample_output %>% dplyr::select(Protein_IDS_in_Sample, Samples) %>% dplyr::group_by(Samples) %>% dplyr::mutate(Protein_IDS_in_Sample2 = paste(Protein_IDS_in_Sample, collapse = ',')) %>% dplyr::select(Samples, Protein_IDS_in_Sample2) %>% dplyr::distinct()
 
 rna_each_sample_output3 <- rna_each_sample_output_3 %>% dplyr::select(Protein_IDS_in_Sample, Samples) %>% dplyr::group_by(Samples) %>% dplyr::mutate(Protein_IDS_in_Sample2 = paste(Protein_IDS_in_Sample, collapse = ',')) %>% dplyr::select(Samples, Protein_IDS_in_Sample2) %>% dplyr::distinct()
 
@@ -174,7 +168,7 @@ rna_each_sample_output4 <- rna_each_sample_output_4 %>% dplyr::select(Protein_ID
 # Expression of dMDTs in the RNA seq data with or without peptide evidence.
 ```{r ExpMatrix}
 
-mel_exp_matrix <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
+mel_exp_matrix <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tuPro_tpm_NR.RDS')
 
 ```
 
@@ -182,7 +176,7 @@ mel_exp_matrix <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorPro
 ## Supplementary Figure
 ```{r takeSampleSpecific}
 coul2 <- c("violet","violetred4")
-common_samples <- intersect(dia_each_sample_output$Samples, rna_each_sample_output3$Samples) #40 samples are common
+common_samples <- intersect(dia_each_sample_output$Samples, rna_each_sample_output3$Samples)
 all_sample <- data.frame(TranscriptLocation = as.numeric(), SampleID=as.character(), TPM=as.numeric(), Category=as.character())
 for (each_sample in common_samples) {
   
@@ -321,8 +315,7 @@ for (each_sample in rna_each_sample_output3$Samples) {
 }}
 ```
 length(unique(final_data$sample))
-[1] 40 common samples in RNA and DIA samples
-# 40 proteins that is found in a sample-specific manner 
+[1] 56 common samples in RNA and DIA samples
 
 ```{r stack_bar_ggplot}
 final_data_allcMDTs <- data.frame()
@@ -373,12 +366,6 @@ final_data_allcMDTs %>% dplyr::select(sample,percentage_occur) %>% dplyr::distin
 final_data %>% dplyr::select(sample,percentage_occur) %>% dplyr::distinct() %>% dplyr::select(percentage_occur) %>% dplyr::summarise(meanPerc = mean(percentage_occur))
   meanPerc
 1  29.06461
-
-length(unique(final_data_allcMDTs$peptides))
-[1] 84
-length(unique(final_data$peptides))
-[1] 37
-
 
 ```{r splitNames}
 Switches_Melanoma_ensps$RunID <- do.call(rbind, strsplit(Switches_Melanoma_ensps$SampleID, '/'))[,2]
@@ -436,8 +423,6 @@ apris_Melanoma
 apris_Melanoma_2
 #  brewer.pal(n = 8, name = "PiYG")
 
-#ggsave("/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/apris_Melanoma_41E#NST.png", plot = apris_Melanoma, bg = "transparent", width = 5, height = 4)
-#ggsave("/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/apris_Melanoma_100#ENST.png", plot = apris_Melanoma_2, bg = "transparent", width = 5, height = 4)
 ```
 
 length(unique(probabilit_proteomics_transcript_ordered_apris_dMDTpep$peptides))
@@ -491,11 +476,6 @@ probability_flex[probability_flex$Group == 'RNA', ]$n2 <- (-probability_flex[pro
 probability_flex_top20_peptides <- (head(probability_flex %>% dplyr::filter(Group=='Proteomics_Flex') %>% dplyr::arrange(desc(n2)), 20) %>% dplyr::select(peptides))$peptides
 
 probability_flex_top20 <- probability_flex[probability_flex$peptides %in% probability_flex_top20_peptides, ]
-
-#ggplot(probability_flex_top20, aes(x=peptides, y=n2, fill=Group)) +
-#     geom_bar(stat="identity") + coord_flip() + 
-#  scale_fill_manual(values=c('Proteomics_Flex'='darkgreen', 'RNA'='#619CFF')) +
-#  theme_classic()
 
 # One sided bar graph - ordered based on RNA n2 which is at the background
 ordered_peptides <- probability_all_top20 %>%
@@ -585,3 +565,47 @@ unique(Switches_Melanoma_tcga[Switches_Melanoma_tcga$dMDT %in% probabilit_proteo
 ```
 
 Switches_Melanoma_tcga[Switches_Melanoma_tcga$dMDT %in% probabilit_proteomics_transcript_ordered_apris$Transcript.stable.ID, ] %>% dplyr::group_by(dMDT) %>% dplyr::summarise(count = n()) %>% dplyr::arrange(desc(count))
+
+
+Make a list of Peptides and Proteins found as Class I and II
+
+## collect all Protein IDs in a row in a sample-specific way in DIA samples
+```{r makeSupplementary}
+## Class I
+ClassI_ENSP_Seq_Run <- Main_output_filtered_dMDT[, c(4,15)]
+ClassI_ENSP_Seq_Run$SampleID <- do.call(rbind, strsplit(Main_output_filtered_dMDT$Run, '-'))[,1]
+colnames(final_data) <- c('SampleID', 'percOccur', 'perNonOccur', 'Protein.Ids')
+ClassI_ENSP_Seq_Run_enst <- merge(ClassI_ENSP_Seq_Run, final_data[, c(1,4)], by=c('Protein.Ids', 'SampleID'))
+
+## Class II
+ClassII_ENSP_Seq_Run <- Main_output_filtered_dMDT_exc_MDT_exc_ClassI_sepRows[, c(4,15)]
+ClassII_ENSP_Seq_Run$SampleID <- do.call(rbind, strsplit(Main_output_filtered_dMDT_exc_MDT_exc_ClassI_sepRows$Run, '-'))[,1]
+colnames(final_data_allcMDTs) <- c('SampleID', 'percOccur', 'perNonOccur', 'Protein.Ids')
+ClassII_ENSP_Seq_Run_enst <- merge(ClassII_ENSP_Seq_Run, final_data_allcMDTs[, c(1,4)], by=c('Protein.Ids', 'SampleID'))
+
+ClassI_ENSP_Seq_Run_enst$Class <- 'ClassI'
+ClassI_ENSP_Seq_Run_enst$Cohort <- 'Melanoma'
+
+ClassII_ENSP_Seq_Run_enst$Class <- 'ClassII'
+ClassII_ENSP_Seq_Run_enst$Cohort <- 'Melanoma'
+
+ClassI_II_Detected_Sequence <- rbind(ClassI_ENSP_Seq_Run_enst, ClassII_ENSP_Seq_Run_enst)
+ClassI_II_Detected_Sequence_uniq <- ClassI_II_Detected_Sequence %>% dplyr::select(Protein.Ids, Stripped.Sequence, Class, Cohort) %>% dplyr::distinct()
+write.csv(ClassI_II_Detected_Sequence_uniq, '/Users/admin/Desktop/TuPro_Paper/BJC/Revision/ClassI_II_Detected_Sequence_uniq_Melanoma.csv', row.names = FALSE) #sample specific
+```
+
+
+Check singleton ENSTs in the ClassI and ClassII ENSTs
+```{r checkSingletons}
+## Sample-Specific Class I ENSTs
+dMDT_Melanoma_sing_1_protein <- unique(ensg_enst_ensp_apris_v104 %>% dplyr::filter(Transcript.stable.ID %in% dMDT_Melanoma_sing_1) %>% dplyr::select(Protein.stable.ID) %>% dplyr::pull(Protein.stable.ID))
+
+final_data %>%  dplyr::filter(Protein.Ids %in% dMDT_Melanoma_sing_1_protein) %>% dplyr::select(Protein.Ids) %>% dplyr::distinct() ## 1 cMDT belongs to Class I - and seen at proteomics level - sample specific
+
+final_data_allcMDTs %>%  dplyr::filter(Protein.Ids %in% dMDT_Melanoma_sing_1_protein) %>% dplyr::select(Protein.Ids) %>% dplyr::distinct() ## 6 cMDT belongs to Class I - and seen at proteomics level - sample specific - total gives 7
+```
+
+length(unique(dMDT_Melanoma_sing_1))
+[1] 1214
+
+

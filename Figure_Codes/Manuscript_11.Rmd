@@ -1,0 +1,597 @@
+---
+title: "Manuscript_11"
+output: html_document
+date: "2025-11-12"
+---
+
+Transcript and CDS Length of Transcripts/cMDTs - Supplementary Figure6 (cMDT specific part only)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#required libraries
+```{r loadlibraries, echo=FALSE}
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(pheatmap)
+library(sva)
+library(stats)
+library(data.table)
+library(BSDA)
+library(Biostrings)
+library(ggvenn)
+```
+
+
+# Melanoma Samples
+```{r read_output_diann}
+library(readr)
+Main_output <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/Melanoma/Main_Report.tsv', delim = '\t', col_names = TRUE)
+dim(Main_output)
+Main_output <- Main_output %>% filter(!str_detect(Genes, ";")) 
+Main_output <- Main_output[Main_output$Q.Value <= 0.01 & Main_output$PG.Q.Value <= 0.01, ]
+head(Main_output)
+dim(Main_output)
+```
+
+```{r read_Library}
+Library_Mel <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/ProteomicsLibrary/Melanoma/ensg_enst_ensp_seq_proteomics_ready.tsv', delim = ',', col_names = TRUE)
+head(Library_Mel)
+```
+
+We consider all Melanoma Library - nothing specific to dMDTs! 
+```{r isolateProteins}
+ENSP_w_Unique_Peptides <- unique(Main_output[Main_output$Protein.Ids %in% Library_Mel$Protein.stable.ID, 'Protein.Ids']$Protein.Ids)
+ENSP_wo_unique_Peptides <- unique(Library_Mel$Protein.stable.ID[!Library_Mel$Protein.stable.ID %in% ENSP_w_Unique_Peptides])
+```
+
+
+## Transcript Length - which includes UTRs and CDS 
+```{r ReadBioMart}
+ENSG_ENST_ENSP_Length <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Biomart/ENSG_ENST_ENSP_Length.txt', delim = '\t', col_names = TRUE)
+head(ENSG_ENST_ENSP_Length)
+```
+
+
+```{r MergeFiles}
+ENST_Length_w_Peptides <- ENSG_ENST_ENSP_Length[ENSG_ENST_ENSP_Length$`Protein stable ID` %in% ENSP_w_Unique_Peptides,]
+ENST_Length_wo_Peptides <- ENSG_ENST_ENSP_Length[ENSG_ENST_ENSP_Length$`Protein stable ID` %in% ENSP_wo_unique_Peptides,]
+head(ENST_Length_w_Peptides)
+colnames(ENST_Length_w_Peptides) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+colnames(ENST_Length_wo_Peptides) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+```
+mean(ENST_Length_w_Peptides$Length)
+[1] 3259
+mean(ENST_Length_wo_Peptides$Length)
+[1] 2000
+
+
+```{r graphs}
+coul2 <- c("lightblue", "gray")
+ENST_Length_w_Peptides$Evidence <- 'PeptideEvidence'
+ENST_Length_wo_Peptides$Evidence <- 'NoPeptideEvidence'
+ENST_Lengths_PepEvidence <- rbind(ENST_Length_w_Peptides, ENST_Length_wo_Peptides)
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+
+
+density_plot <- ggplot(ENST_Lengths_PepEvidence , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot <- ggplot(ENST_Lengths_PepEvidence , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+library(cowplot)
+Melanoma_dMDT_Library_TranscriptLength <- plot_grid(boxplot, density_plot, align = "v", ncol = 1, rel_heights = c(1, 5))
+Melanoma_dMDT_Library_TranscriptLength
+
+svg(filename = "/Users/admin/Desktop/Melanoma_dMDT_Library_TranscriptLength.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Melanoma_dMDT_Library_TranscriptLength.png", plot = Melanoma_dMDT_Library_TranscriptLength, bg = "transparent", width = 6, height = 5)
+print(Melanoma_dMDT_Library_TranscriptLength)
+dev.off()
+```
+
+wilcox.test(ENST_Lengths_PepEvidence[ENST_Lengths_PepEvidence$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_Lengths_PepEvidence[ENST_Lengths_PepEvidence$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_Lengths_PepEvidence[ENST_Lengths_PepEvidence$Evidence == "PeptideEvidence", "Length"]$Length and ENST_Lengths_PepEvidence[ENST_Lengths_PepEvidence$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 9e+06, p-value <2e-16
+alternative hypothesis: true location shift is not equal to 0
+
+## CDS Length only 
+Maybe it would make a difference 
+```{r read_CDSLength}
+ENSG_ENST_ENSP_CDSLength <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Biomart/Ensembl105//ENSG_ENST_ENSP_CDS_Length.txt', delim = '\t', col_names = TRUE)
+head(ENSG_ENST_ENSP_CDSLength)
+
+ENST_CDSLength_w_Peptides <- ENSG_ENST_ENSP_CDSLength[ENSG_ENST_ENSP_CDSLength$`Protein stable ID` %in% ENSP_w_Unique_Peptides,]
+ENST_CDSLength_wo_Peptides <- ENSG_ENST_ENSP_CDSLength[ENSG_ENST_ENSP_CDSLength$`Protein stable ID` %in% ENSP_wo_unique_Peptides,]
+head(ENST_CDSLength_w_Peptides)
+colnames(ENST_CDSLength_w_Peptides) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+colnames(ENST_CDSLength_wo_Peptides) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+
+
+ENST_CDSLength_w_Peptides$Evidence <- 'PeptideEvidence'
+ENST_CDSLength_wo_Peptides$Evidence <- 'NoPeptideEvidence'
+
+ENST_CDSLengths_PepEvidence <- rbind(ENST_CDSLength_w_Peptides, ENST_CDSLength_wo_Peptides)
+
+density_plot_CDS <- ggplot(ENST_CDSLengths_PepEvidence , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot_CDS <- ggplot(ENST_CDSLengths_PepEvidence , aes(y =log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+Melanoma_dMDT_Library_CDSLength <- plot_grid(boxplot_CDS, density_plot_CDS, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+Melanoma_dMDT_Library_CDSLength
+
+svg(filename = "/Users/admin/Desktop/Melanoma_dMDT_Library_CDSLength.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Melanoma_dMDT_Library_CDSLength.png", plot = Melanoma_dMDT_Library_CDSLength, bg = "transparent", width = 6, height = 5)
+print(Melanoma_dMDT_Library_CDSLength)
+dev.off()
+```
+ wilcox.test(ENST_CDSLengths_PepEvidence[ENST_CDSLengths_PepEvidence$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_CDSLengths_PepEvidence[ENST_CDSLengths_PepEvidence$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_CDSLengths_PepEvidence[ENST_CDSLengths_PepEvidence$Evidence == "PeptideEvidence", "Length"]$Length and ENST_CDSLengths_PepEvidence[ENST_CDSLengths_PepEvidence$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 9e+06, p-value <2e-16
+alternative hypothesis: true location shift is not equal to 0
+
+## Ovarian Samples
+```{r read_output_diann}
+library(readr)
+Main_output_Ovary <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/Ovary/DIANN/Main_Report.tsv', delim = '\t', col_names = TRUE)
+Main_output_Ovary <- Main_output_Ovary %>% filter(!str_detect(Genes, ";"))
+Main_output_Ovary <- Main_output_Ovary[Main_output_Ovary$Q.Value <= 0.01 & Main_output_Ovary$PG.Q.Value <= 0.01, ]
+```
+
+
+```{r read_Library}
+Library_Ov <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/ProteomicsLibrary/Ovary/ensg_enst_ensp_seq_proteomics_ready.tsv', delim = ',', col_names = TRUE)
+head(Library_Ov)
+
+ENSP_w_Unique_Peptides_Ov <- unique(Main_output_Ovary[Main_output_Ovary$Protein.Ids %in% Library_Ov$Protein.stable.ID, 'Protein.Ids']$Protein.Ids)
+ENSP_wo_unique_Peptides_Ov <- unique(Library_Ov$Protein.stable.ID[!Library_Ov$Protein.stable.ID %in% ENSP_w_Unique_Peptides_Ov])
+
+ENST_Length_w_Peptides_Ov <- ENSG_ENST_ENSP_Length[ENSG_ENST_ENSP_Length$`Protein stable ID` %in% ENSP_w_Unique_Peptides_Ov,]
+ENST_Length_wo_Peptides_Ov <- ENSG_ENST_ENSP_Length[ENSG_ENST_ENSP_Length$`Protein stable ID` %in% ENSP_wo_unique_Peptides_Ov,]
+head(ENST_Length_w_Peptides_Ov)
+colnames(ENST_Length_w_Peptides_Ov) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+colnames(ENST_Length_wo_Peptides_Ov) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+
+
+ENST_Length_w_Peptides_Ov$Evidence <- 'PeptideEvidence'
+ENST_Length_wo_Peptides_Ov$Evidence <- 'NoPeptideEvidence'
+
+ENST_Lengths_PepEvidence_Ov <- rbind(ENST_Length_w_Peptides_Ov, ENST_Length_wo_Peptides_Ov)
+
+Ov_Density_plot <- ggplot(ENST_Lengths_PepEvidence_Ov , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+Ov_boxplot <- ggplot(ENST_Lengths_PepEvidence_Ov , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+
+Ov_dMDT_Library_TranscriptLength <- plot_grid(Ov_boxplot, Ov_Density_plot, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+Ov_dMDT_Library_TranscriptLength
+
+svg(filename = "/Users/admin/Desktop/Ov_dMDT_Library_TranscriptLength.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Ov_dMDT_Library_TranscriptLength.png", plot = Ov_dMDT_Library_TranscriptLength, bg = "transparent", width = 6, height = 5)
+print(Ov_dMDT_Library_TranscriptLength)
+dev.off()
+```
+
+# Ovarian CDS Length
+```{r CDSLength}
+ENST_CDSLength_w_Peptides_ov <- ENSG_ENST_ENSP_CDSLength[ENSG_ENST_ENSP_CDSLength$`Protein stable ID` %in% ENSP_w_Unique_Peptides_Ov,]
+ENST_CDSLength_wo_Peptides_ov <- ENSG_ENST_ENSP_CDSLength[ENSG_ENST_ENSP_CDSLength$`Protein stable ID` %in% ENSP_wo_unique_Peptides_Ov,]
+head(ENST_CDSLength_w_Peptides)
+
+colnames(ENST_CDSLength_w_Peptides_ov) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+colnames(ENST_CDSLength_wo_Peptides_ov) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+
+
+ENST_CDSLength_w_Peptides_ov$Evidence <- 'PeptideEvidence'
+ENST_CDSLength_wo_Peptides_ov$Evidence <- 'NoPeptideEvidence'
+
+ENST_CDSLengths_PepEvidence_Ov <- rbind(ENST_CDSLength_w_Peptides_ov, ENST_CDSLength_wo_Peptides_ov)
+
+Ov_Density_plot_CDS <- ggplot(ENST_CDSLengths_PepEvidence_Ov , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+Ov_boxplot_CDS <- ggplot(ENST_CDSLengths_PepEvidence_Ov , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+
+Ov_dMDT_Library_CDSLength <- plot_grid(Ov_boxplot_CDS, Ov_Density_plot_CDS, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+Ov_dMDT_Library_CDSLength
+
+svg(filename = "/Users/admin/Desktop/Ov_dMDT_Library_CDSLength.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Ov_dMDT_Library_CDSLength.png", plot = Ov_dMDT_Library_CDSLength, bg = "transparent", width = 6, height = 5)
+print(Ov_dMDT_Library_CDSLength)
+dev.off()
+```
+
+wilcox.test(ENST_Lengths_PepEvidence_Ov[ENST_Lengths_PepEvidence_Ov$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_Lengths_PepEvidence_Ov[ENST_Lengths_PepEvidence_Ov$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_Lengths_PepEvidence_Ov[ENST_Lengths_PepEvidence_Ov$Evidence == "PeptideEvidence", "Length"]$Length and ENST_Lengths_PepEvidence_Ov[ENST_Lengths_PepEvidence_Ov$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 5e+06, p-value <2e-16
+alternative hypothesis: true location shift is not equal to 0
+
+
+## AML Dataset 
+```{r checkAMLresults}
+library(readr)
+Main_output_AML <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/AML/Main_Report.tsv', delim = '\t', col_names = TRUE)
+Main_output_AML <- Main_output_AML %>% filter(!str_detect(Genes, ";"))
+Main_output_AML <- Main_output_AML[Main_output_AML$Q.Value <= 0.01 & Main_output_AML$PG.Q.Value <= 0.01, ]
+
+Library_AML <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/ProteomicsLibrary/AML/ensg_enst_ensp_seq_proteomics_ready.tsv', delim = ',', col_names = TRUE)
+
+ENSP_w_Unique_Peptides_AML <- unique(Main_output_AML[Main_output_AML$Protein.Ids %in% Library_AML$Protein.stable.ID, 'Protein.Ids']$Protein.Ids)
+
+ENSP_wo_unique_Peptides_AML <- unique(Library_AML$Protein.stable.ID[!Library_AML$Protein.stable.ID %in% ENSP_w_Unique_Peptides_AML])
+
+
+ENST_Length_w_Peptides_AML <- ENSG_ENST_ENSP_Length[ENSG_ENST_ENSP_Length$`Protein stable ID` %in% ENSP_w_Unique_Peptides_AML,]
+ENST_Length_wo_Peptides_AML <- ENSG_ENST_ENSP_Length[ENSG_ENST_ENSP_Length$`Protein stable ID` %in% ENSP_wo_unique_Peptides_AML,]
+
+head(ENST_Length_w_Peptides_AML)
+colnames(ENST_Length_w_Peptides_AML) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+colnames(ENST_Length_wo_Peptides_AML) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+
+
+ENST_Length_w_Peptides_AML$Evidence <- 'PeptideEvidence'
+ENST_Length_wo_Peptides_AML$Evidence <- 'NoPeptideEvidence'
+
+ENST_Lengths_PepEvidence_AML <- rbind(ENST_Length_w_Peptides_AML, ENST_Length_wo_Peptides_AML)
+
+ggplot(ENST_Lengths_PepEvidence_AML , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+ggplot(ENST_Lengths_PepEvidence_AML , aes(x=log10(Length), color=Evidence)) +
+  geom_boxplot() +
+  scale_color_manual(values=coul2) + theme_classic()
+
+## CDS Length
+ENST_CDSLength_w_Peptides_AML <- ENSG_ENST_ENSP_CDSLength[ENSG_ENST_ENSP_CDSLength$`Protein stable ID` %in% ENSP_w_Unique_Peptides_AML,]
+
+ENST_CDSLength_wo_Peptides_AML <- ENSG_ENST_ENSP_CDSLength[ENSG_ENST_ENSP_CDSLength$`Protein stable ID` %in% ENSP_wo_unique_Peptides_AML,]
+head(ENST_CDSLength_w_Peptides)
+
+
+colnames(ENST_CDSLength_w_Peptides_AML) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+colnames(ENST_CDSLength_wo_Peptides_AML) <- c('ENSG', 'ENST', 'ENSP', 'Length')
+
+
+ENST_CDSLength_w_Peptides_AML$Evidence <- 'PeptideEvidence'
+ENST_CDSLength_wo_Peptides_AML$Evidence <- 'NoPeptideEvidence'
+
+ENST_CDSLengths_PepEvidence_AML <- rbind(ENST_CDSLength_w_Peptides_AML, ENST_CDSLength_wo_Peptides_AML)
+
+AML_Density_plot_CDS <- ggplot(ENST_CDSLengths_PepEvidence_AML , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+AML_boxplot_CDS <- ggplot(ENST_CDSLengths_PepEvidence_AML , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+
+AML_dMDT_Library_CDSLength <- plot_grid(AML_boxplot_CDS, AML_Density_plot_CDS, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+AML_dMDT_Library_CDSLength
+
+svg(filename = "/Users/admin/Desktop/AML_dMDT_Library_CDSLength.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/AML_dMDT_Library_CDSLength.png", plot = AML_dMDT_Library_CDSLength, bg = "transparent", width = 6, height = 5)
+print(AML_dMDT_Library_CDSLength)
+dev.off()
+```
+
+
+## cMDT specific Analysis
+```{r Switches}
+Switches_Melanoma <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TuPro_GTEx.RDS')
+ensg_enst_ensp_apris_v104 <-  read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Biomart/mart_export-2May2023.txt', sep='\t')
+head(ensg_enst_ensp_apris_v104)
+Switches_Melanoma_ensps <- merge(ensg_enst_ensp_apris_v104, Switches_Melanoma, by.x= 'Transcript.stable.ID', by.y = 'dMDT', sort=FALSE)
+```
+
+## dMDT Level Analysis Melanoma
+```{r IdentifiedvsNonIdentifieddMDTs}
+ENST_Length_w_Peptides_dMDT <- ENST_Length_w_Peptides[ENST_Length_w_Peptides$ENSP %in% Switches_Melanoma_ensps$Protein.stable.ID,]
+ENST_Length_wo_Peptides_dMDT <- ENST_Length_wo_Peptides[ENST_Length_wo_Peptides$ENSP %in% Switches_Melanoma_ensps$Protein.stable.ID,]
+
+ENST_Lengths_PepEvidence_dMDT <- rbind(ENST_Length_w_Peptides_dMDT, ENST_Length_wo_Peptides_dMDT)
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+
+
+density_plot_dMDT <- ggplot(ENST_Lengths_PepEvidence_dMDT , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot_dMDT <- ggplot(ENST_Lengths_PepEvidence_dMDT , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+library(cowplot)
+Melanoma_dMDT_Library_TranscriptLength_dMDT <- plot_grid(boxplot_dMDT, density_plot_dMDT, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+Melanoma_dMDT_Library_TranscriptLength_dMDT
+
+
+svg(filename = "/Users/admin/Desktop/Melanoma_dMDT_Library_TranscriptLength_cMDT.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Melanoma_dMDT_Library_TranscriptLength_dMDT.png", plot = Melanoma_dMDT_Library_TranscriptLength_dMDT, bg = "transparent", width = 6, height = 5)
+print(Melanoma_dMDT_Library_TranscriptLength_dMDT)
+dev.off()
+
+## CDS Length 
+ENST_CDSLength_w_Peptides_dMDT <- ENST_CDSLength_w_Peptides[ENST_CDSLength_w_Peptides$ENSP %in% Switches_Melanoma_ensps$Protein.stable.ID,]
+ENST_CDSLength_wo_Peptides_dMDT <- ENST_CDSLength_wo_Peptides[ENST_CDSLength_wo_Peptides$ENSP %in% Switches_Melanoma_ensps$Protein.stable.ID,]
+
+ENST_CDSLengths_PepEvidence_dMDT <- rbind(ENST_CDSLength_w_Peptides_dMDT, ENST_CDSLength_wo_Peptides_dMDT)
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+
+
+density_plot_dMDT_CDS <- ggplot(ENST_CDSLengths_PepEvidence_dMDT , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot_dMDT_CDS <- ggplot(ENST_CDSLengths_PepEvidence_dMDT , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+library(cowplot)
+Melanoma_dMDT_Library_CDSLength_dMDT <- plot_grid(boxplot_dMDT_CDS, density_plot_dMDT_CDS, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+Melanoma_dMDT_Library_CDSLength_dMDT
+
+
+svg(filename = "/Users/admin/Desktop/Melanoma_dMDT_Library_CDSLength_dMDT.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Melanoma_dMDT_Library_CDSLength_dMDT.png", plot = Melanoma_dMDT_Library_CDSLength_dMDT, bg = "transparent", width = 6, height = 5)
+print(Melanoma_dMDT_Library_CDSLength_dMDT)
+dev.off()
+```
+
+
+wilcox.test(ENST_Lengths_PepEvidence_dMDT[ENST_Lengths_PepEvidence_dMDT$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_Lengths_PepEvidence_dMDT[ENST_Lengths_PepEvidence_dMDT$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_Lengths_PepEvidence_dMDT[ENST_Lengths_PepEvidence_dMDT$Evidence == "PeptideEvidence", "Length"]$Length and ENST_Lengths_PepEvidence_dMDT[ENST_Lengths_PepEvidence_dMDT$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 2e+05, p-value = 1e-11
+alternative hypothesis: true location shift is not equal to 0
+
+wilcox.test(ENST_CDSLengths_PepEvidence_dMDT[ENST_CDSLengths_PepEvidence_dMDT$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_CDSLengths_PepEvidence_dMDT[ENST_CDSLengths_PepEvidence_dMDT$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_CDSLengths_PepEvidence_dMDT[ENST_CDSLengths_PepEvidence_dMDT$Evidence == "PeptideEvidence", "Length"]$Length and ENST_CDSLengths_PepEvidence_dMDT[ENST_CDSLengths_PepEvidence_dMDT$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 2e+05, p-value = 2e-10
+alternative hypothesis: true location shift is not equal to 0
+
+## cMDT Level Analysis Ovary
+```{r IdentifiedvsNonIdentifieddMDTs}
+Switches_Ovary_pri <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Pri_GTEx.RDS')
+Switches_Ovary_met <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Met_GTEx.RDS')
+
+Switches_Ovary <- rbind(Switches_Ovary_pri, Switches_Ovary_met)
+Switches_Ovary_ensps <- merge(ensg_enst_ensp_apris_v104, Switches_Ovary, by.x= 'Transcript.stable.ID', by.y = 'dMDT', sort=FALSE)
+
+ENST_Length_w_Peptides_dMDT_Ov <- ENST_Length_w_Peptides_Ov[ENST_Length_w_Peptides_Ov$ENSP %in% Switches_Ovary_ensps$Protein.stable.ID,]
+ENST_Length_wo_Peptides_dMDT_Ov <- ENST_Length_wo_Peptides_Ov[ENST_Length_wo_Peptides_Ov$ENSP %in% Switches_Ovary_ensps$Protein.stable.ID,]
+
+ENST_Lengths_PepEvidence_dMDT_Ov <- rbind(ENST_Length_w_Peptides_dMDT_Ov, ENST_Length_wo_Peptides_dMDT_Ov)
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+
+
+density_plot_dMDT_Ov <- ggplot(ENST_Lengths_PepEvidence_dMDT_Ov , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot_dMDT_Ov <- ggplot(ENST_Lengths_PepEvidence_dMDT_Ov , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+
+Ov_dMDT_Library_TranscriptLength_dMDT <- plot_grid(boxplot_dMDT_Ov, density_plot_dMDT_Ov, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+Ov_dMDT_Library_TranscriptLength_dMDT
+svg(filename = "/Users/admin/Desktop/Ov_dMDT_Library_TranscriptLength_dMDT.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Ov_dMDT_Library_TranscriptLength_dMDT.png", plot = Ov_dMDT_Library_TranscriptLength_dMDT, bg = "transparent", width = 6, height = 5)
+print(Ov_dMDT_Library_TranscriptLength_dMDT)
+dev.off()
+
+
+## CDS Length 
+ENST_CDSLength_w_Peptides_dMDT_Ov <- ENST_CDSLength_w_Peptides_ov[ENST_CDSLength_w_Peptides_ov$ENSP %in% Switches_Ovary_ensps$Protein.stable.ID,]
+ENST_CDSLength_wo_Peptides_dMDT_Ov <- ENST_CDSLength_wo_Peptides_ov[ENST_CDSLength_wo_Peptides_ov$ENSP %in% Switches_Ovary_ensps$Protein.stable.ID,]
+
+ENST_CDSLengths_PepEvidence_dMDT_Ov <- rbind(ENST_CDSLength_w_Peptides_dMDT_Ov, ENST_CDSLength_wo_Peptides_dMDT_Ov)
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+
+
+density_plot_dMDT_CDS_ov <- ggplot(ENST_CDSLengths_PepEvidence_dMDT_Ov , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot_dMDT_CDS_ov <- ggplot(ENST_CDSLengths_PepEvidence_dMDT_Ov , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+library(cowplot)
+Ov_dMDT_Library_CDSLength_dMDT_ov <- plot_grid(boxplot_dMDT_CDS_ov, density_plot_dMDT_CDS_ov, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+Ov_dMDT_Library_CDSLength_dMDT_ov
+
+
+svg(filename = "/Users/admin/Desktop/Ov_dMDT_Library_CDSLength_dMDT_ov.svg", width = 8, height = 6)
+ggsave("/Users/admin/Desktop/Ov_dMDT_Library_CDSLength_dMDT_ov.png", plot = Ov_dMDT_Library_CDSLength_dMDT_ov, bg = "transparent", width = 6, height = 5)
+print(Ov_dMDT_Library_CDSLength_dMDT_ov)
+dev.off()
+```
+
+
+wilcox.test(ENST_Lengths_PepEvidence_dMDT_Ov[ENST_Lengths_PepEvidence_dMDT_Ov$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_Lengths_PepEvidence_dMDT_Ov[ENST_Lengths_PepEvidence_dMDT_Ov$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_Lengths_PepEvidence_dMDT_Ov[ENST_Lengths_PepEvidence_dMDT_Ov$Evidence == "PeptideEvidence", "Length"]$Length and ENST_Lengths_PepEvidence_dMDT_Ov[ENST_Lengths_PepEvidence_dMDT_Ov$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 1e+05, p-value = 5e-05
+alternative hypothesis: true location shift is not equal to 0
+
+
+wilcox.test(ENST_CDSLengths_PepEvidence_dMDT_Ov[ENST_CDSLengths_PepEvidence_dMDT_Ov$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_CDSLengths_PepEvidence_dMDT_Ov[ENST_CDSLengths_PepEvidence_dMDT_Ov$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+Wilcoxon rank sum test with continuity correction
+
+## AML
+## cMDT Level Analysis AML
+```{r IdentifiedvsNonIdentifieddMDTs}
+Switches_aml <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/AML/Switches_TuPro_GTEx.RDS')
+
+Switches_aml_ensps <- merge(ensg_enst_ensp_apris_v104, Switches_aml, by.x= 'Transcript.stable.ID', by.y = 'dMDT', sort=FALSE)
+
+ENST_Length_w_Peptides_dMDT_AML <- ENST_Length_w_Peptides_AML[ENST_Length_w_Peptides_AML$ENSP %in% Switches_aml_ensps$Protein.stable.ID,]
+
+ENST_Length_wo_Peptides_dMDT_AML <- ENST_Length_wo_Peptides_AML[ENST_Length_wo_Peptides_AML$ENSP %in% Switches_aml_ensps$Protein.stable.ID,]
+
+ENST_Lengths_PepEvidence_dMDT_AML <- rbind(ENST_Length_w_Peptides_dMDT_AML, ENST_Length_wo_Peptides_dMDT_AML)
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+
+density_plot_dMDT_AML <- ggplot(ENST_Lengths_PepEvidence_dMDT_AML , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot_dMDT_AML <- ggplot(ENST_Lengths_PepEvidence_dMDT_AML , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+
+AML_dMDT_Library_TranscriptLength_dMDT <- plot_grid(boxplot_dMDT_AML, density_plot_dMDT_AML, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+AML_dMDT_Library_TranscriptLength_dMDT
+svg(filename = "/Users/admin/Desktop/AML_dMDT_Library_TranscriptLength_dMDT.png", width = 8, height = 6)
+ggsave("//Users/admin/Desktop/AML_dMDT_Library_TranscriptLength_dMDT.png", plot = AML_dMDT_Library_TranscriptLength_dMDT, bg = "transparent", width = 6, height = 5)
+print(AML_dMDT_Library_TranscriptLength_dMDT)
+dev.off()
+
+
+## CDS Length 
+ENST_CDSLength_w_Peptides_dMDT_AML <- ENST_CDSLength_w_Peptides_AML[ENST_CDSLength_w_Peptides_AML$ENSP %in% Switches_aml_ensps$Protein.stable.ID,]
+ENST_CDSLength_wo_Peptides_dMDT_AML <- ENST_CDSLength_wo_Peptides_AML[ENST_CDSLength_wo_Peptides_AML$ENSP %in% Switches_aml_ensps$Protein.stable.ID,]
+
+ENST_CDSLengths_PepEvidence_dMDT_AML <- rbind(ENST_CDSLength_w_Peptides_dMDT_AML, ENST_CDSLength_wo_Peptides_dMDT_AML)
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+
+
+density_plot_dMDT_CDS_AML <- ggplot(ENST_CDSLengths_PepEvidence_dMDT_AML , aes(x=log10(Length), color=Evidence)) +
+  geom_density(lwd = 1.2, linetype = 1) +
+  scale_color_manual(values=coul2) + theme_classic()
+
+boxplot_dMDT_CDS_AML <- ggplot(ENST_CDSLengths_PepEvidence_dMDT_AML , aes(y=log10(Length), color=Evidence)) +
+  geom_boxplot() + coord_flip() +
+  scale_color_manual(values=coul2) + theme_classic() +
+  theme(axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y = element_blank())
+
+library(cowplot)
+aml_dMDT_Library_CDSLength_dMDT_AML <- plot_grid(boxplot_dMDT_CDS_AML, density_plot_dMDT_CDS_AML, align = "v", ncol = 1, rel_heights = c(1, 5))
+
+aml_dMDT_Library_CDSLength_dMDT_AML
+
+
+svg(filename = "/Users/admin/Desktop/AML_dMDT_Library_CDSLength_dMDT_AML.png", width = 8, height = 6)
+ggsave("//Users/admin/Desktop/AML_dMDT_Library_CDSLength_dMDT_AML.png", plot = aml_dMDT_Library_CDSLength_dMDT_AML, bg = "transparent", width = 6, height = 5)
+print(aml_dMDT_Library_CDSLength_dMDT_AML)
+dev.off()
+```
+
+wilcox.test(ENST_Lengths_PepEvidence_dMDT_AML[ENST_Lengths_PepEvidence_dMDT_AML$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_Lengths_PepEvidence_dMDT_AML[ENST_Lengths_PepEvidence_dMDT_AML$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_Lengths_PepEvidence_dMDT_AML[ENST_Lengths_PepEvidence_dMDT_AML$Evidence == "PeptideEvidence", "Length"]$Length and ENST_Lengths_PepEvidence_dMDT_AML[ENST_Lengths_PepEvidence_dMDT_AML$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 3396, p-value = 0.009
+alternative hypothesis: true location shift is not equal to 0
+
+wilcox.test(ENST_CDSLengths_PepEvidence_dMDT_AML[ENST_CDSLengths_PepEvidence_dMDT_AML$Evidence == 'PeptideEvidence', 'Length']$Length, ENST_CDSLengths_PepEvidence_dMDT_AML[ENST_CDSLengths_PepEvidence_dMDT_AML$Evidence == 'NoPeptideEvidence', 'Length']$Length)
+
+
+Wilcoxon rank sum test with continuity correction
+
+data:  ENST_CDSLengths_PepEvidence_dMDT_AML[ENST_CDSLengths_PepEvidence_dMDT_AML$Evidence == "PeptideEvidence", "Length"]$Length and ENST_CDSLengths_PepEvidence_dMDT_AML[ENST_CDSLengths_PepEvidence_dMDT_AML$Evidence == "NoPeptideEvidence", "Length"]$Length
+W = 3074, p-value = 0.01
+alternative hypothesis: true location shift is not equal to 0
+
+
+
+
+
+

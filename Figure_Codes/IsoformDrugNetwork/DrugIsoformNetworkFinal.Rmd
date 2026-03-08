@@ -1,0 +1,757 @@
+---
+title: "Drug Isoform Network Final"
+output: html_document
+date: "2026-01-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r load_libraries}
+library('sjmisc')
+library('tidyr')
+library('dplyr')
+library('pwalign')
+```
+
+```{r configuration}
+# Configuration - all file paths
+BASE_PATH <- '/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/DrugIsoformInt'
+UNIPLOT_DIR <- file.path(BASE_PATH, 'uniplot')
+RESDATA_DIR <- file.path(BASE_PATH, 'resdata')
+OUTPUT_DIR <- '/Users/admin/Desktop'
+BIOMART_FILE <- '/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/mart_export.txt'
+ENST_ENSP_FILE <- '/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/MDT_Switch/Datasets_to_compare_Abdullahs_tool/updated_AK_tool/ensp_ensg_enst_seq_v104.tsv.gz'
+DRUG_HET_FILE <- file.path(BASE_PATH, 'Drug_Het_Ids.tsv')
+PDB_LIST_FILE <- file.path(BASE_PATH, 'HETid_pdbs_only_human.tsv')
+
+# Residue extension parameters
+RESIDUE_EXTENSION <- c(-2, -1, 0, 1, 2)  # Positions relative to binding residue
+
+# Initialize log file
+log_file <- file.path(OUTPUT_DIR, 'processing_log.txt')
+write("Processing Log - DrugIsoformInt (Simplified)", log_file)
+write(paste("Started at:", Sys.time()), log_file, append = TRUE)
+write(paste(rep("=", 80), collapse = ""), log_file, append = TRUE)
+```
+
+```{r helper_functions}
+# Helper function to log messages
+# Helper function to log messages
+log_message <- function(message, type = "INFO") {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  log_entry <- paste0("[", timestamp, "] [", type, "] ", message)
+  write(log_entry, log_file, append = TRUE)
+  # Removed the message() call - only write to file
+}
+
+# Helper function to check file existence
+check_files <- function(pdb_id) {
+  uniplot_file <- file.path(UNIPLOT_DIR, paste0('uniplot.dat_', pdb_id))
+  resdata_file <- file.path(RESDATA_DIR, paste0('resdata.dat_', pdb_id))
+  
+  uniplot_exists <- file.exists(uniplot_file)
+  resdata_exists <- file.exists(resdata_file)
+  
+  if (!uniplot_exists) {
+    log_message(paste("Missing uniplot file for PDB:", pdb_id), "WARNING")
+  }
+  if (!resdata_exists) {
+    log_message(paste("Missing resdata file for PDB:", pdb_id), "WARNING")
+  }
+  
+  return(uniplot_exists && resdata_exists)
+}
+
+# Helper function to parse uniplot data (simplified - no PFAM)
+parse_uniplot_data <- function(pdb_id) {
+  tryCatch({
+    f <- file.path(UNIPLOT_DIR, paste0("uniplot.dat_", pdb_id))
+    if (!file.exists(f)) {
+      log_message(paste("Uniplot file missing for PDB:", pdb_id), "WARNING")
+      return(NULL)
+    }
+
+    lines <- readLines(f, warn = FALSE)
+
+    # minimal presence check (don't require [1] to have seq; require at least one seq somewhere)
+    has_acc  <- any(grepl("^UNIPLOT_UNIPROT_ACC\\[",  lines))
+    has_chain<- any(grepl("^UNIPLOT_CHAIN\\[",       lines))
+    has_useq <- any(grepl("^UNIPLOT_UNIPROT_SEQ\\[", lines))
+    has_pseq <- any(grepl("^UNIPLOT_PDB_SEQ\\[",     lines))
+
+    if (!has_acc || !has_chain || !has_useq || !has_pseq) {
+      log_message(paste("Incomplete uniplot data for PDB:", pdb_id), "WARNING")
+      return(NULL)
+    }
+
+    list(pdb_id = pdb_id, lines = lines)
+
+  }, error = function(e) {
+    log_message(paste("Error parsing uniplot for PDB:", pdb_id, "-", e$message), "ERROR")
+    return(NULL)
+  })
+}
+
+
+# Helper function to create sequence table (no PFAM)
+create_sequence_table <- function(uniplot_data) {
+  if (is.null(uniplot_data) || is.null(uniplot_data$lines)) return(NULL)
+
+  lines  <- uniplot_data$lines
+  pdb_id <- tolower(uniplot_data$pdb_id)
+
+  # Extract "KEY[index] value" into a named vector (names are indices like "1","2",...)
+  get_idx_value <- function(lines, key) {
+    m <- regexec(paste0("^", key, "\\[(\\d+)\\]\\s+(.*)$"), lines)
+    hits <- regmatches(lines, m)
+    hits <- hits[lengths(hits) > 0]
+    if (length(hits) == 0) return(setNames(character(0), character(0)))
+    vals <- vapply(hits, function(x) x[3], character(1))
+    idx  <- vapply(hits, function(x) x[2], character(1))
+    setNames(vals, idx)
+  }
+
+  chain   <- get_idx_value(lines, "UNIPLOT_CHAIN")
+  acc     <- get_idx_value(lines, "UNIPLOT_UNIPROT_ACC")
+  useq    <- get_idx_value(lines, "UNIPLOT_UNIPROT_SEQ")
+  pdbseq  <- get_idx_value(lines, "UNIPLOT_PDB_SEQ")
+
+  idx_all <- sort(unique(c(names(chain), names(acc), names(useq), names(pdbseq))))
+  if (length(idx_all) == 0) return(NULL)
+
+  seq_table <- data.frame(
+    pdb_id         = rep(pdb_id, length(idx_all)),
+    uniprot_seq    = unname(useq[idx_all]),
+    uniprot_acc    = unname(acc[idx_all]),
+    uniprot_chain  = unname(chain[idx_all]),
+    uniprot_pdb_seq= unname(pdbseq[idx_all]),
+    stringsAsFactors = FALSE
+  )
+
+  # normalize empty strings to NA
+  for (cn in c("uniprot_seq", "uniprot_pdb_seq", "uniprot_acc", "uniprot_chain")) {
+    if (cn %in% colnames(seq_table)) {
+      seq_table[[cn]][seq_table[[cn]] == ""] <- NA_character_
+    }
+  }
+
+  seq_table
+}
+
+
+
+# Helper function to calculate alignment gaps
+calculate_alignment_gaps <- function(seq_table) {
+  alignment_emptness <- integer(0)
+
+  for (i in seq_len(nrow(seq_table))) {
+    pdb_seq <- seq_table$uniprot_pdb_seq[i]
+
+    if (is.na(pdb_seq) || nchar(pdb_seq) == 0) {
+      alignment_emptness <- c(alignment_emptness, NA_integer_)
+      next
+    }
+
+    alignment_empty <- 0L
+    for (cpos in seq_len(nchar(pdb_seq))) {
+      if (substr(pdb_seq, cpos, cpos) == "-") alignment_empty <- alignment_empty + 1L else break
+    }
+
+    alignment_emptness <- c(alignment_emptness, alignment_empty)
+  }
+
+  seq_table$alignment_emptness <- alignment_emptness
+  seq_table
+}
+
+
+```
+
+```{r main_processing_with_renumbering}
+log_message("Starting main processing with residue renumbering")
+
+# Load PDB list
+HET_pdb_only_drug_molecules_output_wo_na_only_human <- read.csv(PDB_LIST_FILE, sep = ',', header = TRUE)
+pdb_ids <- unique(HET_pdb_only_drug_molecules_output_wo_na_only_human$PDB_ids)
+
+log_message(paste("Total PDBs to process:", length(pdb_ids)))
+
+# Initialize output dataframe (simplified - no PFAM columns)
+pdb_id_ligand_residues_all <- data.frame(
+  PDBid = character(),
+  LigIdentifier = character(),
+  HetIdentifier = character(),
+  ResiduesContact = character(),
+  ResidueChain = character(),
+  uniprot_seq = character(),
+  uniprot_acc = character(),
+  pdb_id = character(),
+  stringsAsFactors = FALSE
+)
+
+# Process each PDB
+processed_count <- 0
+skipped_count <- 0
+start_time <- Sys.time()
+
+for (i in pdb_ids) { #pdb_ids
+  
+  # Progress update every 50 PDBs
+  if ((processed_count + skipped_count) %% 50 == 0 && (processed_count + skipped_count) > 0) {
+    elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "mins"))
+    total_processed <- processed_count + skipped_count
+    rate <- total_processed / elapsed
+    remaining <- length(pdb_ids) - total_processed
+    eta_mins <- remaining / rate
+    
+    progress_msg <- sprintf("Progress: %d/%d PDBs (%.1f%%) | Processed: %d | Skipped: %d | ETA: %.0f min", 
+                           total_processed, length(pdb_ids), 
+                           100 * total_processed / length(pdb_ids),
+                           processed_count, skipped_count, eta_mins)
+    cat(progress_msg, "\n")
+    log_message(progress_msg)
+  }
+  
+  # Check if files exist
+  if (!check_files(i)) {
+    skipped_count <- skipped_count + 1
+    next
+  }
+  
+  log_message(paste("Processing PDB:", i))
+  
+  # Parse uniplot data
+  uniplot_data <- parse_uniplot_data(i)
+  if (is.null(uniplot_data)) {
+    skipped_count <- skipped_count + 1
+    next
+  }
+  
+  # Create sequence table (no PFAM)
+  seq_table <- create_sequence_table(uniplot_data)
+  if (is.null(seq_table)) {
+    skipped_count <- skipped_count + 1
+    next
+  }
+  
+  # Calculate alignment gaps
+  seq_table_gap <- calculate_alignment_gaps(seq_table)
+  
+  # Read resdata file
+  resdata <- read.csv(file.path(RESDATA_DIR, paste0('resdata.dat_', i)), 
+                     header = FALSE, sep = '\t')
+  
+  # Check for duplicate chains (e.g., "CHAIN B = A" means B is same as A)
+  chain_duplicates <- list()
+  for (row_idx in 1:nrow(resdata)) {
+    line <- resdata$V1[row_idx]
+    if (grepl("^CHAIN [A-Z] = [A-Z]", line)) {
+      parts <- strsplit(line, " ")[[1]]
+      duplicate_chain <- parts[2]
+      original_chain <- parts[4]
+      chain_duplicates[[duplicate_chain]] <- original_chain
+      cat(sprintf("Found duplicate: Chain %s = Chain %s\n", duplicate_chain, original_chain))
+    }
+  }
+  
+  # Renumber residues to align with UniProt sequence
+  cat("\n=== STARTING RENUMBERING FOR PDB:", i, "===\n")
+  cat("Number of chains to process:", nrow(seq_table_gap), "\n")
+  
+  for (each_row in seq_len(nrow(seq_table_gap))) {
+
+    cat(sprintf("\n--- Processing chain %d/%d ---\n", each_row, nrow(seq_table_gap)))
+  
+    x <- 0
+  
+    each_emptness <- seq_table_gap$alignment_emptness[each_row]
+    pdb_seq_full  <- seq_table_gap$uniprot_pdb_seq[each_row]
+    chain_of_row  <- seq_table_gap$uniprot_chain[each_row]
+  
+    # Skip chains that have no sequence or no alignment emptiness
+    if (is.na(each_emptness) || is.na(pdb_seq_full)) {
+      cat("Skipping chain due to missing sequence/gaps. PDB:", i,
+          "chain:", chain_of_row, "\n")
+      next
+    }
+  
+    new_residue_number <- each_emptness + 1
+  
+    pdb_alignment_new <- substr(pdb_seq_full, each_emptness + 1, nchar(pdb_seq_full))
+    if (is.na(pdb_alignment_new) || nchar(pdb_alignment_new) == 0) {
+      cat("Skipping chain because pdb_alignment_new is empty/NA. PDB:", i,
+          "chain:", chain_of_row, "\n")
+      next
+    }
+
+    cat(sprintf("Chain: %s, Leading gaps: %d, Starting position: %d\n",
+                chain_of_row, each_emptness, new_residue_number))
+  
+    resdata_only_residues <- as.data.frame(resdata[nchar(resdata$V1) == 18, ])
+    colnames(resdata_only_residues) <- c('Residues')
+    only_chain_resdata_only_residue <- resdata_only_residues[
+      grepl(paste0("  ", chain_of_row, " "), resdata_only_residues$Residues),
+    ]
+  
+    for (j in seq_len(nchar(pdb_alignment_new))) {
+      each_residue_id <- substr(pdb_alignment_new, j, j)
+  
+      if (each_residue_id != '-') {
+        rownumber <- which(resdata$V1 == only_chain_resdata_only_residue[j - x])
+  
+        if (length(rownumber) > 0) {
+          resdata$V1[rownumber] <- paste0(
+            sprintf("%*s", 1, strsplit(only_chain_resdata_only_residue[j - x], split = "\\s+")[[1]][1]),
+            sprintf("%*s", 4, strsplit(only_chain_resdata_only_residue[j - x], split = "\\s+")[[1]][2]),
+            sprintf("%*s", 5, new_residue_number),
+            sprintf("%*s", 3, strsplit(only_chain_resdata_only_residue[j - x], split = "\\s+")[[1]][4]),
+            sprintf("%*s", 2, strsplit(only_chain_resdata_only_residue[j - x], split = "\\s+")[[1]][5]),
+            sprintf("%*s", 3, strsplit(only_chain_resdata_only_residue[j - x], split = "\\s+")[[1]][6])
+          )
+        }
+  
+        new_residue_number <- new_residue_number + 1
+      } else {
+        x <- x + 1
+      }
+    }
+  }
+
+  # Extract ligand information
+  lig_names <- c()
+  lig_names_rows <- c()
+  lig_ids <- c()
+  lig_id_het_id <- data.frame(lig_ids = character(), het_names = character())
+  
+  for (eachrow in 1:length(resdata$V1)) {
+    # Check if line starts with "LIGAND"
+    if (grepl("^LIGAND", resdata$V1[eachrow])) {
+      ligand_row <- resdata$V1[eachrow]
+      lig_name <- strsplit(ligand_row, split = '\\s+')[[1]][3]
+      lig_names <- append(lig_names, lig_name)
+      lig_row <- resdata[grepl(lig_name, resdata$V1), ]
+      lig_name_legend_name <- lig_row[grepl('LIGAND', lig_row)]
+      
+      if (!is_empty(lig_name_legend_name)) {
+        lig_names_rows <- append(lig_names_rows, lig_name_legend_name)
+        lig_ids <- append(lig_ids, paste0('LIG ', strsplit(lig_name_legend_name, ' ')[[1]][2]))
+        lig_id_het_id <- data.frame(lig_ids = lig_ids, het_names = lig_names)
+      }
+    }
+  }
+  
+  if (is_empty(lig_names_rows)) {
+    log_message(paste("No ligands found for PDB:", i), "WARNING")
+    skipped_count <- skipped_count + 1
+    next
+  }
+  
+  # Process residue contacts
+  res_contacting_all_ids <- data.frame(X1 = character(), X2 = character(), stringsAsFactors = FALSE)
+  output_resdata <- matrix(ncol = 3, nrow = length(resdata$V1))
+  
+  for (eachlig in lig_names_rows) {
+    lig_id <- paste0('LIG ', strsplit(eachlig, ' ')[[1]][2])
+    het_id <- strsplit(eachlig, ' ')[[1]][3]
+    last_row_number <- 0
+    output_resdata <- matrix(ncol = 3, nrow = length(resdata$V1))
+    char_number <- 0
+    char_lig_number <- 0
+    
+    for (eachrow in 1:length(resdata$V1)) {
+      calc_nchar_row <- nchar(resdata$V1[eachrow])
+      if (calc_nchar_row == 18) {
+        char_lig_number <- 0
+        char_number <- 1
+        last_row_number <- eachrow
+        output_resdata[eachrow, 1] <- resdata$V1[eachrow]
+      } else if (calc_nchar_row > 18) {
+        output_resdata[eachrow, 1] <- resdata$V1[eachrow]
+        char_number <- 2
+        char_lig_number <- 0
+      }
+      
+      if (calc_nchar_row == 6) {
+        char_lig_number <- char_lig_number + 1
+        if (char_number == 1 && char_lig_number >= 2) {
+          output_resdata[last_row_number, 2] <- resdata$V1[eachrow]
+        } else {
+          output_resdata[last_row_number, 3] <- resdata$V1[eachrow]
+        }
+      }
+    }
+    
+    output_resdataX <- tidyr::unite(as.data.frame(output_resdata), col = 'X2', c('V2', 'V3'), sep = ',')
+    output_resdata_df <- data.frame(output_resdataX)
+    res_contacting <- output_resdata_df[grepl(lig_id, output_resdata_df$X2), ]
+    res_contacting_all_ids <- rbind(res_contacting_all_ids, res_contacting)
+    res_contacting_all_ids$X2 <- gsub("^ ", "", res_contacting_all_ids$X2)
+    res_contacting_all_ids$X2 <- gsub('NA, ', '', res_contacting_all_ids$X2)
+    res_contacting_all_idsX <- separate_rows(res_contacting_all_ids, X2, sep = ",")
+    res_contacting_all_idsX$X2 <- gsub('^ ', '', res_contacting_all_idsX$X2)
+    res_contacting_all_ids_drug_names <- merge(res_contacting_all_idsX, lig_id_het_id, 
+                                               by.x = 'X2', by.y = 'lig_ids')
+  }
+  
+  # Extract residue and chain information
+  residues_contacting <- c()
+  chain_contacting <- c()
+  ligand_contacting <- c()
+  hetid_contacting <- c()
+  
+  for (eachrow in 1:nrow(res_contacting_all_ids_drug_names)) {
+    variable <- res_contacting_all_ids_drug_names$V1[eachrow]
+    if (!is_empty(variable) && !is.na(variable)) {
+      res_number <- strsplit(variable, "\\s+")[[1]][3]
+      chain_number <- strsplit(variable, "\\s+")[[1]][4]
+      lig_contacting <- res_contacting_all_ids_drug_names$X2[eachrow]
+      het_contacting <- res_contacting_all_ids_drug_names$het_names[eachrow]
+      residues_contacting <- append(residues_contacting, res_number)
+      chain_contacting <- append(chain_contacting, chain_number)
+      ligand_contacting <- append(ligand_contacting, lig_contacting)
+      hetid_contacting <- append(hetid_contacting, het_contacting)
+    }
+  }
+  
+  if (is_empty(residues_contacting) || all(is.na(residues_contacting))) {
+    log_message(paste("No valid residue contacts for PDB:", i), "WARNING")
+    skipped_count <- skipped_count + 1
+    next
+  }
+  
+  # Create dataframe with all contact information
+  pdb_ligand_residues <- cbind(
+    as.data.frame(resdata[1, 1]),
+    ligand_contacting,
+    hetid_contacting,
+    residues_contacting,
+    chain_contacting
+  )
+  colnames(pdb_ligand_residues) <- c('PDBid', 'LigIdentifier', 'HetIdentifier', 
+                                     'ResiduesContact', 'ResidueChain')
+  
+  # Add sequence information from seq_table
+  for (eachrow in 1:nrow(pdb_ligand_residues)) {
+    residue_chain <- pdb_ligand_residues$ResidueChain[eachrow]
+    
+    # Get sequence info for this chain
+    chain_info <- seq_table[seq_table$uniprot_chain == residue_chain, ]
+    
+    if (nrow(chain_info) > 0) {
+      pdb_ligand_residues$uniprot_seq[eachrow] <- chain_info$uniprot_seq[1]
+      pdb_ligand_residues$uniprot_acc[eachrow] <- chain_info$uniprot_acc[1]
+      pdb_ligand_residues$pdb_id[eachrow] <- toupper(chain_info$pdb_id[1])
+    } else {
+      pdb_ligand_residues$uniprot_seq[eachrow] <- NA
+      pdb_ligand_residues$uniprot_acc[eachrow] <- NA
+      pdb_ligand_residues$pdb_id[eachrow] <- NA
+    }
+  }
+  
+  pdb_id_ligand_residues_all <- rbind(pdb_id_ligand_residues_all, pdb_ligand_residues)
+  processed_count <- processed_count + 1
+}
+
+log_message(paste("Processing complete. Processed:", processed_count, "Skipped:", skipped_count))
+```
+
+```{r load_biomart_data}
+log_message("Loading Biomart and sequence data")
+
+# Load peptide sequences and mapping
+enst_ensp_seq <- read.csv(ENST_ENSP_FILE, sep = '\t', header = FALSE)
+colnames(enst_ensp_seq) <- c('ENSP', 'ENSG', 'ENST', 'Seq')
+
+# Load Ensembl/PDB mapping (removed PFAM from this)
+ensg_enst_ensp_pdb <- read.csv(BIOMART_FILE, sep = '\t', header = TRUE)
+
+# Merge sequences with mapping
+ensg_enst_ensp_pdb_seqs <- merge(ensg_enst_ensp_pdb, enst_ensp_seq, 
+                                 by.x = 'Protein.stable.ID', by.y = 'ENSP')
+
+log_message("Biomart data loaded successfully")
+```
+
+```{r merge_drug_data}
+log_message("Merging drug data with Biomart")
+
+# Merge only on PDB ID and sequence (no PFAM!)
+drug_pdb_ensp_seq <- merge(pdb_id_ligand_residues_all, 
+                           ensg_enst_ensp_pdb_seqs, 
+                           by.x = c('pdb_id', 'uniprot_seq'), 
+                           by.y = c('PDB.ID', 'Seq'),
+                           all.x = FALSE)
+
+log_message(paste("Drug data merged. Total rows:", nrow(drug_pdb_ensp_seq)))
+
+# Check how many rows have missing gene information
+missing_gene_info <- sum(is.na(drug_pdb_ensp_seq$Gene.stable.ID))
+if (missing_gene_info > 0) {
+  log_message(paste("Warning:", missing_gene_info, "rows missing gene information after merge"), "WARNING")
+}
+```
+
+```{r filter_drugs}
+log_message("Filtering for approved drugs only")
+
+# Load drug HET IDs
+drug_het_id_only <- read.csv(DRUG_HET_FILE, sep = ',')
+
+# Filter for approved drugs only
+drug_pdb_ensp_seq_only_drugs <- drug_pdb_ensp_seq[
+  drug_pdb_ensp_seq$HetIdentifier %in% drug_het_id_only$hetName, 
+]
+
+log_message(paste("Filtered to approved drugs. Rows:", nrow(drug_pdb_ensp_seq_only_drugs)))
+```
+
+```{r compare_isoforms}
+log_message("Starting isoform comparison with alignment-based approach")
+
+# Initialize isoform-drug database
+isoform_drug_database <- data.frame(
+  pdb = character(),
+  gene = character(),
+  isoform = character(),
+  drug = character(),
+  drug_name = character(),
+  interaction = character(),
+  reference_enst = character(),
+  interacting_residues = character(),  # NEW COLUMN
+  stringsAsFactors = FALSE
+)
+
+ENSG_list <- unique(drug_pdb_ensp_seq_only_drugs$Gene.stable.ID)
+ENSG_list <- ENSG_list[!is.na(ENSG_list)]
+
+log_message(paste("Processing", length(ENSG_list), "genes for isoform comparison"))
+
+gene_count <- 0
+isoform_start_time <- Sys.time()
+
+for (each_ensg in ENSG_list) {
+  gene_count <- gene_count + 1
+  
+  # Progress update every 25 genes
+  if (gene_count %% 25 == 0) {
+    elapsed <- as.numeric(difftime(Sys.time(), isoform_start_time, units = "mins"))
+    rate <- gene_count / elapsed
+    remaining <- length(ENSG_list) - gene_count
+    eta_mins <- remaining / rate
+    
+    progress_msg <- sprintf("Isoform comparison: %d/%d genes (%.1f%%) | ETA: %.0f min", 
+                           gene_count, length(ENSG_list),
+                           100 * gene_count / length(ENSG_list), eta_mins)
+    cat(progress_msg, "\n")
+    log_message(progress_msg)
+  }
+  
+  pdb_id_ligand_residues_ensg <- drug_pdb_ensp_seq_only_drugs[
+    drug_pdb_ensp_seq_only_drugs$Gene.stable.ID == each_ensg, 
+  ] %>% distinct()
+  
+  each_ensg_enst_ensp_pdb_seqs <- ensg_enst_ensp_pdb_seqs[
+    ensg_enst_ensp_pdb_seqs$Gene.stable.ID == each_ensg, 
+  ] %>% distinct()
+  
+  pdb_list <- unique(pdb_id_ligand_residues_ensg$pdb_id)
+  
+  for (each_pdb in pdb_list) {
+    ligands_list <- unique(pdb_id_ligand_residues_ensg[
+      pdb_id_ligand_residues_ensg$pdb_id == each_pdb, 'LigIdentifier'
+    ])
+    
+    for (each_ligand in ligands_list) {
+      transcript_id <- unique(pdb_id_ligand_residues_ensg[
+        pdb_id_ligand_residues_ensg$LigIdentifier == each_ligand & 
+        pdb_id_ligand_residues_ensg$pdb_id == each_pdb, 'Transcript.stable.ID'
+      ])
+      
+      drug_name <- unique(pdb_id_ligand_residues_ensg[
+        pdb_id_ligand_residues_ensg$LigIdentifier == each_ligand & 
+        pdb_id_ligand_residues_ensg$pdb_id == each_pdb, 'HetIdentifier'
+      ])
+      
+      # Get binding residues (UniProt numbering)
+      residues_contacting <- pdb_id_ligand_residues_ensg[
+        pdb_id_ligand_residues_ensg$pdb_id == each_pdb & 
+        pdb_id_ligand_residues_ensg$LigIdentifier == each_ligand, 
+      ] %>% pull(ResiduesContact) %>% gsub('[A-z]', '', .) %>% unique()
+      
+      other_isoforms_list <- unique(each_ensg_enst_ensp_pdb_seqs$Transcript.stable.ID)
+      
+      biomart_sequence_of_isoform <- unique(each_ensg_enst_ensp_pdb_seqs[
+        each_ensg_enst_ensp_pdb_seqs$Transcript.stable.ID %in% transcript_id, 'Seq'
+      ])
+      
+      if (length(biomart_sequence_of_isoform) == 0) {
+        log_message(paste("No sequence found for reference transcript", transcript_id), "WARNING")
+        next
+      }
+      
+      for (each_isoform in other_isoforms_list) {
+        isoform_sequence <- unique(each_ensg_enst_ensp_pdb_seqs[
+          each_ensg_enst_ensp_pdb_seqs$Transcript.stable.ID == each_isoform, 'Seq'
+        ])
+        
+        if (length(isoform_sequence) == 0) {
+          next
+        }
+        
+        # Perform pairwise alignment
+        Alignment_Transcripts <- tryCatch({
+          pwalign::pairwiseAlignment(isoform_sequence, biomart_sequence_of_isoform, type = 'local-global')
+        }, error = function(e) {
+          log_message(paste("Alignment error for", each_isoform, ":", e$message), "WARNING")
+          return(NULL)
+        })
+        
+        if (is.null(Alignment_Transcripts)) {
+          next
+        }
+        
+        Alignment_Transcripts_ref <- as.vector(alignedSubject(Alignment_Transcripts))
+        Alignment_Transcripts_as <- as.vector(alignedPattern(Alignment_Transcripts))
+        
+        Aligned_ref_trans_charc <- strsplit(Alignment_Transcripts_ref, '')[[1]]
+        Aligned_as_trans_charc <- strsplit(Alignment_Transcripts_as, '')[[1]]
+        
+        # Create new residue numbering
+        new_residue_numbering <- c()
+        first_residue <- 0
+        for (each_residue in Aligned_ref_trans_charc) {
+          if (each_residue == '-') {
+            first_residue <- first_residue + 1
+          } else {
+            first_residue <- first_residue + 1
+            new_residue_numbering <- append(new_residue_numbering, first_residue)
+          }
+        }
+        
+        # Add extended residues (±2, ±1 from binding residues)
+        residues_contacting_extended <- as.numeric(residues_contacting)
+        for (offset in RESIDUE_EXTENSION) {
+          residues_contacting_extended <- append(residues_contacting_extended, 
+                                                as.numeric(residues_contacting) + offset)
+        }
+        residues_contacting_extended <- unique(residues_contacting_extended[residues_contacting_extended > 0])
+        
+        # Get residues at these positions
+        valid_positions <- residues_contacting_extended[residues_contacting_extended <= length(new_residue_numbering)]
+        new_interacting_residues <- Aligned_ref_trans_charc[new_residue_numbering[valid_positions]]
+        residues_on_isoform <- Aligned_as_trans_charc[new_residue_numbering[valid_positions]]
+        
+        # Check if binding sites match
+        binding_match <- setequal(new_interacting_residues, residues_on_isoform)
+        
+        # Calculate which residues in the ISOFORM are binding (if any)
+        isoform_binding_residues <- NA
+        if (binding_match) {
+          # For YES: find the actual residue positions in the isoform sequence
+          # Map the reference positions to isoform positions
+          isoform_residue_positions <- c()
+          
+          # Get only the core binding residues (not extended ±2, ±1)
+          core_residues <- as.numeric(residues_contacting)
+          
+          # Check for NA values and log warning if found
+          if (any(is.na(core_residues))) {
+            na_count <- sum(is.na(core_residues))
+            log_message(paste("WARNING: Found", na_count, "NA values in core_residues for",
+                              each_pdb, each_ligand, "- skipping invalid positions"), "WARNING")
+           # cat(sprintf("  Original residues_contacting: %s\n", paste(residues_contacting, collapse=",")))
+           # cat(sprintf("  After as.numeric: %s\n", paste(core_residues, collapse=",")))
+          }
+          
+          # Remove NA values to avoid "missing value where TRUE/FALSE needed" error
+          core_residues <- core_residues[!is.na(core_residues)]
+          
+          # If no valid residues remain after removing NAs, skip this iteration
+          if (length(core_residues) == 0) {
+            log_message(paste("No valid core residues for", each_pdb, each_ligand, "- skipping"), "WARNING")
+            next
+          }
+          
+          for (core_res in core_residues) {
+            if (core_res <= length(new_residue_numbering)) {
+              # Find position in alignment
+              align_pos <- new_residue_numbering[core_res]
+              
+              # Count non-gap positions up to this point in isoform sequence
+              isoform_pos <- sum(Aligned_as_trans_charc[1:align_pos] != "-")
+              
+              # Only include if this position is not a gap in the isoform
+              if (Aligned_as_trans_charc[align_pos] != "-") {
+                isoform_residue_positions <- append(isoform_residue_positions, isoform_pos)
+              }
+            }
+          }
+          
+          if (length(isoform_residue_positions) > 0) {
+            # Sort the residue positions for easier reading
+            isoform_residue_positions <- sort(unique(isoform_residue_positions))
+            isoform_binding_residues <- paste(isoform_residue_positions, collapse = ",")
+          }
+        }
+        
+        # Check if binding sites match
+        isoform_drug_db <- data.frame(
+          pdb = each_pdb,
+          gene = each_ensg,
+          isoform = each_isoform,
+          drug = each_ligand,
+          drug_name = paste(drug_name, collapse = ","),
+          interaction = ifelse(binding_match, "YES", "NO"),
+          reference_enst = paste(transcript_id, collapse = ","),
+          interacting_residues = isoform_binding_residues,  # Now isoform-specific
+          stringsAsFactors = FALSE
+        )
+        
+        isoform_drug_database <- rbind(isoform_drug_database, isoform_drug_db)
+      }
+    }
+  }
+}
+
+log_message(paste("Isoform comparison complete. Total rows:", nrow(isoform_drug_database)))
+```
+
+```{r save_results}
+log_message("Saving results")
+
+# Save main results
+saveRDS(pdb_id_ligand_residues_all, 
+        file = file.path(OUTPUT_DIR, 'pdb_ligand_residues.RDS'))
+
+saveRDS(isoform_drug_database, 
+        file = file.path(OUTPUT_DIR, 'isoform_drug_database_last.RDS'))
+
+# Save as TSV
+write.table(isoform_drug_database, 
+           file.path(OUTPUT_DIR, 'isoform_drug_database.tsv'), 
+           sep = '\t', quote = FALSE, row.names = FALSE)
+
+log_message("Results saved successfully")
+log_message(paste("Finished at:", Sys.time()))
+```
+
+```{r summary_statistics}
+# Print summary statistics
+cat("\n=== SUMMARY STATISTICS ===\n")
+cat(paste("Total PDBs in input:", length(pdb_ids), "\n"))
+cat(paste("PDBs successfully processed:", processed_count, "\n"))
+cat(paste("PDBs skipped:", skipped_count, "\n"))
+cat(paste("Total genes analyzed:", length(ENSG_list), "\n"))
+cat(paste("Total drug-isoform predictions:", nrow(isoform_drug_database), "\n"))
+cat(paste("Predictions with binding (YES):", sum(isoform_drug_database$interaction == "YES"), "\n"))
+cat(paste("Predictions without binding (NO):", sum(isoform_drug_database$interaction == "NO"), "\n"))
+
+# Show example output
+cat("\n=== EXAMPLE OUTPUT ===\n")
+print(head(isoform_drug_database, 10))
+```
+
+
+

@@ -1,0 +1,1025 @@
+---
+title: "Manuscript 3: TuPro Thesis Analysis Pipeline - IsoNetwork and IsoDrug Network"
+author: "Tülay Karakulak"
+date: "2024-05-28"
+output: 
+  flexdashboard::flex_dashboard:
+    storyboard: true
+    social: menu
+    source: embed
+---
+
+These codes represents the Figure 6, Supplementary Fig 6, and also other important figures and statistics regarding the Isoform and Drug networks. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r libraries}
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(rmarkdown)
+#library(harmony)
+library(Matrix)
+library(cowplot)
+library(RColorBrewer)
+library(viridis)
+#library(ggpubr)
+set.seed(12345)
+```
+
+
+### MDT Switch Analysis Across Cancer Cohorts
+```{r read_switches}
+dMDTs_Ovary_tcga <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/TCGA_GTEx_ov_Switch.RDS')
+dMDT_Ovary_tuPro_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Pri_GTEx.RDS')
+dMDT_Ovary_tuPro_metastatis <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Met_GTEx.RDS')
+dMDT_Melanoma_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Pri_GTEx.RDS')
+dMDT_Melanoma_tcga_metastatis <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Met_GTEx.RDS')
+dMDT_Melanoma_tupro <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TuPro_GTEx.RDS')
+dMDT_AML_tcga <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/AML/Switches_TCGA_GTEx.RDS')
+dMDT_AML_tuPro <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/AML/Switches_TuPro_GTEx.RDS')
+```
+
+
+## Figure 6
+### Isoform - Isoform Interaction Network 
+
+```{r read_isoform_isoform_int_network}
+# score 900
+Iso_Iso_Network_v12 <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Iso_Iso_Network/interactionsInIsoforms_400_2_status_withTitin_withoutWARNING.tsv', sep='\t', header = TRUE)
+head(Iso_Iso_Network_v12)
+```
+
+```{r read_string_PPI}
+string_PPI <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Iso_Iso_Network/9606.protein.links.detailed.v12.0.txt', sep=' ', header = TRUE)
+string_900PPI <- string_PPI %>% dplyr::filter(combined_score >= 900)
+head(string_900PPI)
+```
+
+
+```{r visualize_Int_Network}
+### STRING protein number  - Canonical
+# 19699 -- sequence file ENSP - without 900 cutoff
+string_canonical_protein_sequence <- 19699 
+STRING_network_protein <- 19488 # with 400 score
+
+### Total Transcript:Protein Number - Ensembl v99
+Ensembl_transcript <- 111047
+#111047      2
+
+## Isoform-Isoform Interaction_Size
+Number_of_Isoform_in_Network <- length(unique(Iso_Iso_Network_v12$ENST))
+
+## No STRING interaction
+No_STRING_interaction_gene_number <- (length(unique(Iso_Iso_Network_v12[Iso_Iso_Network_v12$STRINGintN == 0, 'ENSG'])) - 1) # removing one NA value
+
+# No STRING interaction # ENST
+No_STRING_interaction_enst_number <- (length(unique(Iso_Iso_Network_v12[Iso_Iso_Network_v12$STRINGintN == 0, 'ENST'])) - 1) # removing one NA value
+
+## No domain-domain Interaction
+No_3did_Info <- length(unique(Iso_Iso_Network_v12[Iso_Iso_Network_v12$ExistInts == '-' & Iso_Iso_Network_v12$MissInts == '-', 'ENST']))
+
+## Proteins with Existing Interaction # No missed interaction
+Only_existing_int <- length(unique(Iso_Iso_Network_v12[Iso_Iso_Network_v12$ExistInts != '-' & Iso_Iso_Network_v12$MissInts == '-', 'ENST']))
+
+
+## Proteins with Missed Interaction -  No existing Interaction Left
+Only_missed_int <- length(unique(Iso_Iso_Network_v12[Iso_Iso_Network_v12$ExistInts == '-' & Iso_Iso_Network_v12$MissInts != '-', 'ENST']))
+
+Exist_missed_int <- length(unique(Iso_Iso_Network_v12[Iso_Iso_Network_v12$ExistInts != '-' & Iso_Iso_Network_v12$MissInts != '-', 'ENST']))
+```
+
+```{r names_numbers}
+Names <- c('string_protein_sequence', 'STRING_network_protein', 'Ensembl_transcript', 'Number_of_Isoform_in_Network', 'No_STRING_interaction_enst_number', 'No_3did_Info', 'Only_existing_int', 'Only_missed_int', 'Exist_missed_int')
+Numbers <- c(string_canonical_protein_sequence, STRING_network_protein, Ensembl_transcript, Number_of_Isoform_in_Network, No_STRING_interaction_enst_number, No_3did_Info, Only_existing_int, Only_missed_int, Exist_missed_int)
+Names_Numbers <- data.frame(Names = Names, Numbers=Numbers)
+```
+
+
+## Figure Supplementary 6A - Network Number - Existing and Missing Pairs
+```{r stack_bar}
+library(viridis)
+#library(hrbrthemes)
+
+Iso_Network_Statistics <- Names_Numbers[c(4,6:9),]
+Struc_Info_3did <- Names_Numbers[Names_Numbers$Names == 'Number_of_Isoform_in_Network', 'Numbers'] - Names_Numbers[Names_Numbers$Names == 'No_3did_Info', 'Numbers']
+Iso_Network_Statistics <- rbind(Iso_Network_Statistics, c('Struc_Info_3did', Struc_Info_3did))
+category <- c('Network_Number', 'Structural_Info', 'Exit_Miss', 'Exit_Miss', 'Exit_Miss', 'Structural_Info')
+Iso_Network_Statistics <- cbind(Iso_Network_Statistics, category)
+Iso_Network_Statistics$Numbers <- as.numeric(Iso_Network_Statistics$Numbers)
+
+category_order <- c("Network_Number", "Structural_Info", "Exit_Miss")
+Iso_Network_Statistics$category <- factor(Iso_Network_Statistics$category, levels = category_order)
+my_palette2 <- c("#000000",
+"#94e1e3",
+"#8d90ed",
+"#57708f",
+"#2c5689",
+"#47adb7")
+scale_color_manual(values = my_palette2)
+
+plotStatistics <- ggplot(Iso_Network_Statistics, aes(x=category, y=Numbers, fill=Names)) + geom_col(position = "stack", stat='identity')  + coord_cartesian(ylim = c(0, max(Iso_Network_Statistics$Numbers) * 1.1)) + theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Adjust the angle and horizontal justification of x-axis labels
+        axis.text.y = element_text(size = 12),  # Adjust the font size of y-axis labels
+        axis.title.x = element_text(size = 14),  # Adjust the font size of x-axis label
+        axis.title.y = element_text(size = 14)) +
+        scale_fill_manual(values = my_palette2) + theme_classic()
+
+plotStatistics
+```
+
+## Figure 5
+### How many genes have cMDT  - how many of them have missing and kept interaction? 
+```{r merge_all_cancer_ensgs}
+dMDT_all_genes <- unique(c(dMDTs_Ovary_tcga$ENSG, dMDT_Ovary_tuPro_primary$ENSG, dMDT_Ovary_tuPro_metastatis$ENSG, dMDT_Melanoma_tcga_primary$ENSG, dMDT_Melanoma_tcga_metastatis$ENSG, dMDT_Melanoma_tupro$ENSG, dMDT_AML_tcga$ENSG, dMDT_AML_tuPro$ENSG))
+```
+
+length(dMDT_all_genes): 4151
+total dMDT genes in three cohort: 4151
+
+```{r kept_int_lost_int}
+# merge_with the IsoNetwork to see the effect
+dMDTs_Ovary_tcga$Cohort <- 'TCGA_Ovary'
+dMDT_Ovary_tuPro_primary$Cohort <- 'TuPro_primary_Ovary'
+dMDT_Ovary_tuPro_metastatis$Cohort <- 'TuPro_metastatic_Ovary'
+dMDT_Melanoma_tcga_primary$Cohort <- 'TCGA_Primary_Melanoma'
+dMDT_Melanoma_tcga_metastatis$Cohort <- 'TCGA_Metastatic_Melanoma'
+dMDT_Melanoma_tupro$Cohort <- 'TuPro_Melanoma'
+dMDT_AML_tcga$Cohort <- 'AML_TCGA'
+dMDT_AML_tuPro$Cohort <- 'AML_TuPro'
+
+dMDTs_all_cancers <- rbind(dMDTs_Ovary_tcga, dMDT_Ovary_tuPro_primary, dMDT_Ovary_tuPro_metastatis, dMDT_Melanoma_tcga_primary, dMDT_Melanoma_tcga_metastatis, dMDT_Melanoma_tupro, dMDT_AML_tcga, dMDT_AML_tuPro)
+
+dMDTs_all_cancers_isoNetwork <- merge(dMDTs_all_cancers, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+```
+
+```{r statisticsOncMDTIsoformNetwork}
+domain_info <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN !=0 | MissIntN != 0) %>% dplyr::select(ENSG.x) %>% dplyr::distinct() %>% dplyr::count()
+no_domain <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN ==0 & MissIntN == 0) %>% dplyr::select(ENSG.x) %>% dplyr::distinct() %>% dplyr::count()
+
+some_int_loss <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN !=0 & MissIntN != 0) %>% dplyr::select(dMDT) %>% dplyr::distinct() %>% dplyr::count()
+kepts_all_int <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN != 0 & MissIntN == 0) %>% dplyr::select(dMDT) %>% dplyr::distinct() %>% dplyr::count()
+missed_all_int <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN == 0 & MissIntN != 0) %>% dplyr::select(dMDT) %>% dplyr::distinct() %>% dplyr::count()
+
+total_dMDT_ENSG <- dMDTs_all_cancers_isoNetwork %>% dplyr::select(dMDT) %>% dplyr::distinct() %>% dplyr::count()
+total_ENSG <- Iso_Iso_Network_v12 %>% dplyr::select(ENSG) %>% dplyr::distinct() %>% dplyr::count()
+
+print(paste("Some Int Loss:", some_int_loss$n))
+print(paste("Kept All Int:", kepts_all_int$n))
+print(paste("Missed All Int:", missed_all_int$n))
+print(paste("No Domain Info:", no_domain$n))
+print(paste("Available Domain Info:", domain_info$n))
+print(paste("All Genes:", total_ENSG$n))
+print(paste("All dMDT Genes:", total_dMDT_ENSG$n))
+```
+
+## Figure 5A
+```{r graph}
+dMDT_int_loss_profile_non_dMDT_genes <- (19700-3866)
+dMDT_int_loss_profile <- data.frame(c(total_gene=total_ENSG$n, total_dMDT_gene = total_dMDT_ENSG$n, no_domain_dMDT=no_domain$n, some_int_lost = some_int_loss$n, kept_all_int = kepts_all_int$n, missed_all_int= missed_all_int$n, Non_dMDT_genes=dMDT_int_loss_profile_non_dMDT_genes, domain_info=domain_info$n))
+dMDT_int_loss_profile$Types <- rownames(dMDT_int_loss_profile)
+colnames(dMDT_int_loss_profile) <- c('Number', 'Types')
+dMDT_int_loss_profile_geneNumber <- dMDT_int_loss_profile %>% filter(Types %in% c('Non_dMDT_genes', 'total_dMDT_gene'))
+dMDT_domain_info <- dMDT_int_loss_profile %>% filter(Types %in% c('domain_info', 'no_domain_dMDT'))
+dMDT_int_loss_profile_IntLoss <- dMDT_int_loss_profile %>% filter(Types %in% c('some_int_lost', 'kept_all_int', 'missed_all_int'))
+
+hsize <- 1
+
+dMDT_int_loss_profile_geneNumber <- dMDT_int_loss_profile_geneNumber %>% 
+  mutate(x = hsize)
+
+# gene number pie chart
+plot1 <- ggplot(dMDT_int_loss_profile_geneNumber, aes(x = hsize, y = Number, fill = Types)) +
+  geom_col(color = "black") +
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = c("#74A9CF", "#0570B0")) +
+  xlim(c(0.2, hsize + 0.5))  +
+  theme(panel.background = element_rect(fill = "transparent", color = NA),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+
+# Domain Domain Info pie chart
+dMDT_domain_info <- dMDT_domain_info %>% 
+  mutate(x = hsize)
+
+plot2 <- ggplot(dMDT_domain_info, aes(x = hsize, y = Number, fill = Types)) +
+  geom_col(color = "black") +
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = c("#3F3F91", "#6464D5")) +
+  xlim(c(0.2, hsize + 0.5))  +
+  theme(panel.background = element_rect(fill = "transparent", color = NA),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+
+# Int Lost Pie Chart
+dMDT_int_loss_profile_IntLoss <- dMDT_int_loss_profile_IntLoss %>% 
+  mutate(x = hsize)
+
+plot3 <- ggplot(dMDT_int_loss_profile_IntLoss, aes(x = hsize, y = Number, fill = Types)) +
+  geom_col(color = "black") + 
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = c("#AFAFCA",
+                               "#7678A0", "#8D8DBB")) + 
+  xlim(c(0.2, hsize + 0.5))  +
+  theme(panel.background = element_rect(fill = "transparent", color = NA),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+
+print(plot1)
+print(plot2)
+print(plot3)
+```
+
+### Integrate Isoform Interaction Network to dMDT Findings
+```{r readExpression, warning=FALSE, message=FALSE}
+ov_tcga_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
+ov_tuPro_tpm_NR_primary <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_primary.RDS')
+ov_tuPro_tpm_NR_metastatic <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_metastatic.RDS')
+mel_tcga_primary_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_primary_tpm_NR.RDS')
+mel_tcga_metastatic_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_metastatic_tpm_NR.RDS')
+mel_tuPro_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
+AML_tcga_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
+AML_tuPro_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
+```
+
+
+```{r buildNetwork, warning=FALSE, message=FALSE}
+library(MDTToolset)
+ENSG_ENST_ENSP_Pfam <- MDTToolset::ENSG_ENST_ENSP_Pfam
+
+# Ovary TCGA Network
+dMDTs_IsoNetwork_Ov_tcga <- merge(dMDTs_Ovary_tcga, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_Ov_tcga <- dMDTs_IsoNetwork_Ov_tcga[dMDTs_IsoNetwork_Ov_tcga$MissInts != '-' | dMDTs_IsoNetwork_Ov_tcga$ExistInts != '-',]
+#Switching_Events_Network_Ov_tcga <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tcga, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Ov_tcga <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tcga, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
+
+## Ovary TuPro Network
+dMDTs_IsoNetwork_Ov_tuPro <- merge(dMDT_Ovary_tuPro_primary, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_Ov_tuPro <- dMDTs_IsoNetwork_Ov_tuPro[dMDTs_IsoNetwork_Ov_tuPro$MissInts != '-' | dMDTs_IsoNetwork_Ov_tuPro$ExistInts != '-',]
+#Switching_Events_Network_Ov_tuPro_primary <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_primary, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Ov_tuPro_primary <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_primary, iso_network = Iso_Iso_Network_v12)
+
+## Ovary TuPro Metas Network
+
+dMDTs_IsoNetwork_Ov_tuPro_met <- merge(dMDT_Ovary_tuPro_metastatis, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_Ov_tuPro_met <- dMDTs_IsoNetwork_Ov_tuPro_met[dMDTs_IsoNetwork_Ov_tuPro_met$MissInts != '-' | dMDTs_IsoNetwork_Ov_tuPro_met$ExistInts != '-',]
+#Switching_Events_Network_Ov_tuPro_met <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_metastatic, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Ov_tuPro_met <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_metastatic, iso_network = Iso_Iso_Network_v12)
+
+## Melanoma TCGA Primary Network
+
+dMDTs_IsoNetwork_Mel_tcga_pri <- merge(dMDT_Melanoma_tcga_primary, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_Mel_tcga_pri <- dMDTs_IsoNetwork_Mel_tcga_pri[dMDTs_IsoNetwork_Mel_tcga_pri$MissInts != '-' | dMDTs_IsoNetwork_Mel_tcga_pri$ExistInts != '-',]
+#Switching_Events_Network_Mel_tcga_Pri <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_pri, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_primary_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Mel_tcga_Pri <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_pri, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_primary_tpm_NR, iso_network = Iso_Iso_Network_v12)
+
+## Melanoma TCGA Met Network
+
+dMDTs_IsoNetwork_Mel_tcga_met <- merge(dMDT_Melanoma_tcga_metastatis, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_Mel_tcga_met <- dMDTs_IsoNetwork_Mel_tcga_met[dMDTs_IsoNetwork_Mel_tcga_met$MissInts != '-' | dMDTs_IsoNetwork_Mel_tcga_met$ExistInts != '-',]
+#Switching_Events_Network_Mel_tcga_met  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_metastatic_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Mel_tcga_met  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_metastatic_tpm_NR, iso_network = Iso_Iso_Network_v12)
+
+## Melanoma TuPro Network
+dMDTs_IsoNetwork_Mel_tuPro_met <- merge(dMDT_Melanoma_tupro, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_Mel_tuPro_met <- dMDTs_IsoNetwork_Mel_tuPro_met[dMDTs_IsoNetwork_Mel_tuPro_met$MissInts != '-' | dMDTs_IsoNetwork_Mel_tuPro_met$ExistInts != '-',]
+#Switching_Events_Network_Mel_tuPro_met  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Mel_tuPro_met  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
+
+## AML TCGA Network
+dMDTs_IsoNetwork_AML_tcga <- merge(dMDT_AML_tcga, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_AML_TCGA <- dMDTs_IsoNetwork_AML_tcga[dMDTs_IsoNetwork_AML_tcga$MissInts != '-' | dMDTs_IsoNetwork_AML_tcga$ExistInts != '-',]
+#Switching_Events_Network_AML_TCGA  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TCGA, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_AML_TCGA  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TCGA, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
+```
+
+
+```{r AMLcont}
+## AML tuPro Network
+dMDTs_IsoNetwork_AML_tupro <- merge(dMDT_AML_tuPro, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
+dMDTs_IsoNetwork_int_AML_TuPro <- dMDTs_IsoNetwork_AML_tupro[dMDTs_IsoNetwork_AML_tupro$MissInts != '-' | dMDTs_IsoNetwork_AML_tupro$ExistInts != '-',]
+#Switching_Events_Network_AML_TuPro  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_AML_TuPro  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
+```
+
+
+
+### Isolate Int Losses
+```{r IsolateIntLoss}
+# Function to isolate only ENSP IDs
+isolate_ensp_ids <- function(x) {
+  # Split the string by commas
+  parts <- unlist(strsplit(x, ","))
+  # Filter out only parts that start with "ENSP"
+  ensp_ids <- parts[grep("^ENSP", parts)]
+  # Collapse the result back to a single string, if needed
+  paste(ensp_ids, collapse = ",")
+}
+
+# Apply the function to the column
+Switching_Events_Network_Ov_tcga$ensps_missed <- sapply(Switching_Events_Network_Ov_tcga$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_Ov_tcga$ensps_kept <- sapply(Switching_Events_Network_Ov_tcga$ensp_expressed_kept, isolate_ensp_ids)
+
+
+# Apply the function to the column
+Switching_Events_Network_Ov_tuPro_primary$ensps_missed <- sapply(Switching_Events_Network_Ov_tuPro_primary$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_Ov_tuPro_primary$ensps_kept <- sapply(Switching_Events_Network_Ov_tuPro_primary$ensp_expressed_kept, isolate_ensp_ids)
+
+
+# Apply the function to the column
+Switching_Events_Network_Ov_tuPro_met$ensps_missed <- sapply(Switching_Events_Network_Ov_tuPro_met$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_Ov_tuPro_met$ensps_kept <- sapply(Switching_Events_Network_Ov_tuPro_met$ensp_expressed_kept, isolate_ensp_ids)
+
+
+# Apply the function to the column
+Switching_Events_Network_Mel_tcga_Pri$ensps_missed <- sapply(Switching_Events_Network_Mel_tcga_Pri$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_Mel_tcga_Pri$ensps_kept <- sapply(Switching_Events_Network_Mel_tcga_Pri$ensp_expressed_kept, isolate_ensp_ids)
+
+
+# Apply the function to the column
+Switching_Events_Network_Mel_tcga_met$ensps_missed <- sapply(Switching_Events_Network_Mel_tcga_met$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_Mel_tcga_met$ensps_kept <- sapply(Switching_Events_Network_Mel_tcga_met$ensp_expressed_kept, isolate_ensp_ids)
+
+# Apply the function to the column
+Switching_Events_Network_Mel_tuPro_met$ensps_missed <- sapply(Switching_Events_Network_Mel_tuPro_met$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_Mel_tuPro_met$ensps_kept <- sapply(Switching_Events_Network_Mel_tuPro_met$ensp_expressed_kept, isolate_ensp_ids)
+
+# Apply the function to the column
+Switching_Events_Network_AML_TCGA$ensps_missed <- sapply(Switching_Events_Network_AML_TCGA$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_AML_TCGA$ensps_kept <- sapply(Switching_Events_Network_AML_TCGA$ensp_expressed_kept, isolate_ensp_ids)
+
+# Apply the function to the column
+Switching_Events_Network_AML_TuPro$ensps_missed <- sapply(Switching_Events_Network_AML_TuPro$ensp_expressed_missed, isolate_ensp_ids)
+Switching_Events_Network_AML_TuPro$ensps_kept <- sapply(Switching_Events_Network_AML_TuPro$ensp_expressed_kept, isolate_ensp_ids)
+
+```
+
+
+
+```{r SumAllResults}
+Switching_Events_Network_AML_TuPro$Cohort <- 'TuPro_AML'
+Switching_Events_Network_AML_TCGA$Cohort <- 'TCGA_AML'
+Switching_Events_Network_Mel_tuPro_met$Cohort <- 'TuPro_Mel'
+Switching_Events_Network_Mel_tcga_met$Cohort <- 'TCGA_Metastatic_Mel'
+Switching_Events_Network_Mel_tcga_Pri$Cohort <- 'TCGA_Primary_Mel'
+Switching_Events_Network_Ov_tuPro_met$Cohort <- 'TuPro_Metastatic_Ovary'
+Switching_Events_Network_Ov_tuPro_primary$Cohort <- 'TuPro_Primary_Ovary'
+Switching_Events_Network_Ov_tcga$Cohort  <- 'TCGA_Ovary'
+
+Switches_Events_All <- rbind(Switching_Events_Network_AML_TuPro, Switching_Events_Network_AML_TCGA, Switching_Events_Network_Mel_tuPro_met, Switching_Events_Network_Mel_tcga_met, Switching_Events_Network_Mel_tcga_Pri, Switching_Events_Network_Ov_tuPro_met, Switching_Events_Network_Ov_tuPro_primary, Switching_Events_Network_Ov_tcga)
+
+#saveRDS(Switches_Events_All, '/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Switches_Events_NetworkDistruption_All.RDS')
+```
+
+
+some_int_loss <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN !=0 & MissIntN != 0) %>% dplyr::select(dMDT) %>% dplyr::distinct() %>% dplyr::count()
+kepts_all_int <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN != 0 & MissIntN == 0) %>% dplyr::select(dMDT) %>% dplyr::distinct() %>% dplyr::count()
+missed_all_int <- dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN == 0 & MissIntN != 0) %>% dplyr::select(dMDT) %>% dplyr::distinct() %>% dplyr::count()
+
+
+```{r calcNumberofLossKeptInts2}
+# Function to count ENSP IDs in a string
+count_ensps <- function(x) {
+  if (is.na(x) || x == "" || x == "-") {
+    return(0)
+  }
+  
+  # Split by comma and count
+  ensp_ids <- unlist(strsplit(as.character(x), ","))
+  
+  return(length(ensp_ids))
+}
+
+Switches_Events_All$n_ensps_missed <- 
+  sapply(Switches_Events_All$ensps_missed, count_ensps)
+
+Switches_Events_All$n_ensps_kept <- 
+  sapply(Switches_Events_All$ensps_kept, count_ensps)
+```
+
+```{r calcIntLosses}
+some_kept <- Switches_Events_All %>% 
+  dplyr::group_by(dMDT) %>% 
+  dplyr::summarise(
+    max_kept = max(n_ensps_kept),
+    max_missed = max(n_ensps_missed)
+  ) %>%
+  dplyr::filter(max_kept != 0 & max_missed != 0) %>%
+  dplyr::count() 
+  
+missed_all <- Switches_Events_All %>% 
+  dplyr::group_by(dMDT) %>% 
+  dplyr::summarise(
+    max_kept = max(n_ensps_kept),
+    max_missed = max(n_ensps_missed)
+  ) %>%
+  dplyr::filter(max_kept == 0 & max_missed != 0) %>%
+  dplyr::count()  #772 missed all
+  
+
+kept_all <- Switches_Events_All %>% 
+  dplyr::group_by(dMDT) %>% 
+  dplyr::summarise(
+    max_kept = max(n_ensps_kept),
+    max_missed = max(n_ensps_missed)
+  ) %>%
+  dplyr::filter(max_kept != 0 & max_missed == 0) %>%
+  dplyr::count() # 661
+  
+no_expression <- Switches_Events_All %>% 
+  dplyr::group_by(dMDT) %>% 
+  dplyr::summarise(
+    max_kept = max(n_ensps_kept),
+    max_missed = max(n_ensps_missed)
+  ) %>%
+  dplyr::filter(max_kept == 0 & max_missed == 0) %>%
+  dplyr::count() #204 
+```
+
+
+
+```{r piechart_final}
+# Int Lost Pie Chart
+dMDT_switch_profile <- Switches_Events_All %>% 
+  dplyr::group_by(dMDT) %>% 
+  dplyr::summarise(
+    max_kept = max(n_ensps_kept),
+    max_missed = max(n_ensps_missed)
+  ) %>%
+  dplyr::mutate(
+    Types = dplyr::case_when(
+      max_kept != 0 & max_missed != 0 ~ "some_kept_some_missed",
+      max_kept == 0 & max_missed != 0 ~ "missed_all",
+      max_kept != 0 & max_missed == 0 ~ "kept_all",
+      max_kept == 0 & max_missed == 0 ~ "no_expression"
+    )
+  ) %>%
+  dplyr::group_by(Types) %>%
+  dplyr::summarise(
+    Number = n(),
+    x = 1
+  ) %>%
+  dplyr::select(Types, Number, x)
+
+plot3 <- ggplot(dMDT_switch_profile, aes(x = hsize, y = Number, fill = Types)) +
+  geom_col(color = "black") + 
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = c("#AFAFCA",
+                               "#7678A0", "#8D8DBB","#C5C5D8")) + 
+  xlim(c(0.2, hsize + 0.5))  +
+  theme(panel.background = element_rect(fill = "transparent", color = NA),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+plot3
+```
+
+```{r FunctionBuildIsoNet}
+
+buildIsoNet2 <- function (dMDT_network_info, ensembl_data, iso_network, kallisto_counts) 
+{
+  dMDT_int_Loss_all <- data.frame()
+  for (each_sample in unique(dMDT_network_info$SampleID)) {
+    sample_kallisto <- kallisto_counts[, c("ENST", "ENSG", 
+      each_sample)]
+    sample_dMDTs <- dMDT_network_info[dMDT_network_info$SampleID == 
+      each_sample, ]
+    for (each_dMDT in unique(sample_dMDTs$dMDT)) {
+      ensp_expressed_missed <- c()
+      ensp_expressed_kept <- c()
+      each_dMDT_in_sample <- sample_dMDTs[sample_dMDTs$dMDT == 
+        each_dMDT, ]
+      miss_ints <- each_dMDT_in_sample[each_dMDT_in_sample$dMDT == 
+        each_dMDT, "MissInts"]
+      kept_ints <- each_dMDT_in_sample[each_dMDT_in_sample$dMDT == 
+        each_dMDT, "ExistInts"]
+      miss_protein_ints <- regmatches(miss_ints, gregexpr("ENSP\\d+", 
+        miss_ints))[[1]]
+      kept_protein_ints <- regmatches(kept_ints, gregexpr("ENSP\\d+", 
+        kept_ints))[[1]]
+      if (length(miss_protein_ints) > 0) {
+        for (each_protein in miss_protein_ints) {
+          ENST_id_missed <- unique(ensembl_data[ensembl_data$Protein.stable.ID == 
+            each_protein, "Transcript.stable.ID"])
+          ENST_id_expression_missed <- sample_kallisto[sample_kallisto$ENST == 
+            ENST_id_missed, 3]
+          if (length(ENST_id_expression_missed) > 0 && 
+            as.numeric(ENST_id_expression_missed) >= 
+              2) {
+            ensp_expressed_missed <- append(ensp_expressed_missed, 
+              each_protein)
+          }
+          else {
+            ensp_expressed_missed <- append(ensp_expressed_missed, 
+              "Not_expressed")
+          }
+        }
+      }
+      else {
+        ensp_expressed_missed <- append(ensp_expressed_missed, 
+          "No missed int")
+      }
+      if (length(kept_protein_ints) > 0) {
+        for (each_protein_kept in kept_protein_ints) {
+          ENST_id_kept <- unique(ensembl_data[ensembl_data$Protein.stable.ID == 
+            each_protein_kept, "Transcript.stable.ID"])
+          ENST_id_expression_kept <- sample_kallisto[sample_kallisto$ENST == 
+            ENST_id_kept, 3]
+          if (length(ENST_id_expression_kept) > 0 && 
+            as.numeric(ENST_id_expression_kept) >= 2) {
+            ensp_expressed_kept <- append(ensp_expressed_kept, 
+              each_protein_kept)
+          }
+          else {
+            ensp_expressed_kept <- append(ensp_expressed_kept, 
+              "Not_expressed")
+          }
+        }
+      }
+      else {
+        ensp_expressed_kept <- append(ensp_expressed_kept, 
+          "No kept int")
+      }
+      MDT_in_samples <- each_dMDT_in_sample %>% tidyr::separate_rows(MDT_GTEx, 
+        sep = ",")
+      # MDT_in_sample <- unique(each_dMDT_in_sample[, "MDT_GTEx"])
+      MDT_in_sample <- unique(unlist(strsplit(each_dMDT_in_sample$MDT_GTEx, ",")))
+      for (eachMDT in MDT_in_sample) {
+        MDT_ENSP <- unique(ensembl_data[ensembl_data$Transcript.stable.ID == 
+          eachMDT, "Protein.stable.ID"])
+        Canonical_STRING_ENSP <- each_dMDT_in_sample[, 
+          "STRINGensp"]
+        if (length(MDT_ENSP) > 0) {
+          if (MDT_ENSP != Canonical_STRING_ENSP) {
+            MDT_int_losts <- iso_network[iso_network$ENST == 
+              eachMDT, "MissInts"]
+            MDT_int_losts_ensps <- regmatches(miss_ints, 
+              gregexpr("ENSP\\d+", MDT_int_losts))[[1]]
+            int_losts_in_sample <- ensp_expressed_missed[!ensp_expressed_missed %in% 
+              MDT_int_losts_ensps]
+            int_losts_in_mdt <- ensp_expressed_missed[ensp_expressed_missed %in% 
+              MDT_int_losts_ensps]
+            each_dMDT_in_sample$ensp_expressed_missed <- unique(paste(ensp_expressed_missed, 
+              collapse = ","))
+            each_dMDT_in_sample$ensp_expressed_kept <- unique(paste(ensp_expressed_kept, 
+              collapse = ","))
+            each_dMDT_in_sample$int_losts_in_mdt <- unique(paste(int_losts_in_mdt, 
+              collapse = ","))
+          }
+          else if (MDT_ENSP == Canonical_STRING_ENSP) {
+            each_dMDT_in_sample$ensp_expressed_missed <- unique(paste(ensp_expressed_missed, 
+              collapse = ","))
+            each_dMDT_in_sample$ensp_expressed_kept <- unique(paste(ensp_expressed_kept, 
+              collapse = ","))
+            each_dMDT_in_sample$int_losts_in_mdt <- "Canonical"
+          }
+        }
+        else {
+          each_dMDT_in_sample$ensp_expressed_missed <- unique(paste(ensp_expressed_missed, 
+            collapse = ","))
+          each_dMDT_in_sample$ensp_expressed_kept <- unique(paste(ensp_expressed_kept, 
+            collapse = ","))
+          each_dMDT_in_sample$int_losts_in_mdt <- "MDT_is_not_found"
+        }
+        dMDT_int_Loss_all <- rbind(dMDT_int_Loss_all, 
+          each_dMDT_in_sample)
+      }
+    }
+  }
+  return(dMDT_int_Loss_all)
+}
+
+```
+
+
+
+## Isoform Drug Interaction Integration
+```{r read_drugIso}
+isoform_drug_database <- read_delim(file='/Users/admin/Desktop/SupplementaryFiles/SupplementaryFile6.tsv', delim = '\t', col_types = cols(interacting_residues = col_character()))
+```
+
+
+```{r statistics}
+length(unique(isoform_drug_database$gene))
+length(unique(isoform_drug_database$reference_enst))
+length(unique(isoform_drug_database$isoform))
+length(unique(isoform_drug_database$drug_name))
+```
+```{r codingseq}
+ensg_enst_ensp_pdb_pfams <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/mart_export.txt', sep='\t', header=TRUE)
+head(ensg_enst_ensp_pdb_pfams)
+
+protein_coding_ensts <- ensg_enst_ensp_pdb_pfams[ensg_enst_ensp_pdb_pfams$Transcript.type == 'protein_coding', 2]
+
+isoform_drug_database_protein_coding <- isoform_drug_database[isoform_drug_database$isoform %in% protein_coding_ensts,]
+
+length(unique(isoform_drug_database_protein_coding$gene))
+isoform_drug_database_protein_coding %>% filter(reference_enst != "NA") %>% separate_rows(reference_enst, sep = ",") %>% distinct(reference_enst) %>% nrow()
+length(unique(isoform_drug_database_protein_coding$isoform))
+length(unique(isoform_drug_database_protein_coding$drug_name))
+
+write.table(isoform_drug_database_protein_coding, '/Users/admin/Downloads/isoDrug/isoform_drug_database_protein_coding.tsv', quote = FALSE, sep = '\t', row.names = FALSE)
+```
+length(unique(isoform_drug_database_protein_coding[isoform_drug_database_protein_coding$interaction == 'NO', 'gene'])$gene)
+1525
+
+1525/2159*100
+[1] 70.63455
+
+2159
+
+```{r statisticsyy}
+# bargraph - number of ENSG, ENST, drug, reference ENST
+gene_number <- length(unique(isoform_drug_database_protein_coding$gene))
+reference_enst <- length(unique(isoform_drug_database_protein_coding$reference_enst))
+isoform_number <- length(unique(isoform_drug_database_protein_coding$isoform))
+drug_number <- length(unique(isoform_drug_database_protein_coding$drug_name))
+
+ENSG_list_all_all_disrupted <- as.vector(dMDTs_all_cancers_isoNetwork %>% dplyr::filter(ExistIntN !=0 | MissIntN != 0) %>% dplyr::select(ENSG.x) %>% dplyr::distinct())
+dMDT_gene_targeted_by_drug <- isoform_drug_database_protein_coding[isoform_drug_database_protein_coding$gene %in% ENSG_list_all_all_disrupted$ENSG.x, ]
+dMDT_gene_targeted_by_drug2 <- isoform_drug_database_protein_coding[isoform_drug_database_protein_coding$isoform %in%  dMDTs_all_cancers_isoNetwork$dMDT, ]
+```
+
+
+
+```{r check_howmany}
+total_length_of_dDMT_gene <- length(unique(dMDTs_all_cancers_isoNetwork$ENSG.x)) # but in the Iso Network it is less
+Number_of_Gene_w_Structure <- length(unique(dMDTs_all_cancers_isoNetwork[dMDTs_all_cancers_isoNetwork$ENSG.x %in% isoform_drug_database_protein_coding$gene,'ENSG.x']))
+Number_of_Gene_wo_Structure <- (total_length_of_dDMT_gene - Number_of_Gene_w_Structure)
+
+dMDT_int_loss_drug_profile <- data.frame(c(GenewStructure=Number_of_Gene_w_Structure, total_length_of_dMDT_gene = (total_length_of_dDMT_gene-Number_of_Gene_w_Structure)))
+
+dMDT_int_loss_drug_profile$Types <- rownames(dMDT_int_loss_drug_profile)
+colnames(dMDT_int_loss_drug_profile) <- c('Number', 'Types')
+
+hsize <- 1
+# How many genes have interactions with Drugs
+dMDT_int_loss_drug_profile <- dMDT_int_loss_drug_profile %>% 
+  mutate(x = .env$hsize)
+
+plot4 <- ggplot(dMDT_int_loss_drug_profile, aes(x = x, y = Number, fill = Types)) +
+  geom_col(color = "black") + 
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = c("#80d5b0",
+"#c3e0d4")) + 
+  xlim(c(0.2, hsize + 0.5))  +
+  theme(panel.background = element_rect(fill = "transparent", color = NA),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+plot4
+```
+
+
+```{r LostInt}
+# How many genes have Lost Interactions
+#All_kept_int <- dMDT_gene_targeted_by_drug2 %>% dplyr::select(isoform, interaction) %>% dplyr::filter(interaction=='YES') %>% dplyr::distinct() %>% dplyr::count()
+
+binding_ensts <- as.vector(dMDT_gene_targeted_by_drug2 %>% dplyr::select(isoform, interaction) %>% dplyr::filter(interaction=='YES') %>% dplyr::select(isoform))
+binding_ensts_number <- length(unique(as.vector(dMDT_gene_targeted_by_drug2 %>% dplyr::select(isoform, interaction) %>% dplyr::filter(interaction=='YES') %>% dplyr::select(isoform))$isoform))
+
+#total_missed_int <- dMDT_gene_targeted_by_drug2 %>% dplyr::select(isoform, interaction) %>% dplyr::filter(interaction=='NO') %>%  dplyr::distinct() %>% dplyr::count()
+
+nonbinding_ensts <- as.vector(dMDT_gene_targeted_by_drug2 %>% dplyr::select(isoform, interaction) %>% dplyr::filter(interaction=='NO') %>% dplyr::select(isoform))
+nonbinding_ensts_number <- length(unique(as.vector(dMDT_gene_targeted_by_drug2 %>% dplyr::select(isoform, interaction) %>% dplyr::filter(interaction=='NO') %>% dplyr::select(isoform))$isoform))
+
+lost_kepts_ensts <- length(unique(intersect(binding_ensts[[1]], nonbinding_ensts[[1]])))
+only_nonbinding_enst <- nonbinding_ensts_number - lost_kepts_ensts
+only_binding_enst <- binding_ensts_number - lost_kepts_ensts
+
+#dMDT_int_missed <- data.frame(c(total_kept_int=All_kept_int$n, total_missed_int = total_missed_int$n))
+dMDT_int_missed <- data.frame(c(total_kept_int=only_binding_enst, total_missed_int = only_nonbinding_enst, both = lost_kepts_ensts))
+
+dMDT_int_missed$Types <- rownames(dMDT_int_missed)
+colnames(dMDT_int_missed) <- c('Number', 'Types')
+  
+dMDT_int_missed <- dMDT_int_missed %>% 
+  mutate(x = .env$hsize)
+
+plot5 <- ggplot(dMDT_int_missed, aes(x = x, y = Number, fill = Types)) +
+  geom_col(color = "black") + 
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = c( "#cfdbd6", "#bddcdc", "#97dee8")) + 
+  xlim(c(0.2, hsize + 0.5))  +
+  theme(panel.background = element_rect(fill = "transparent", color = NA),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+print(plot5)
+```
+
+
+
+## Tyrosine Kinase Inhibitors
+```{r TKIlist}
+TKI <- read.table('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/DrugBank/TKI_Drugs_28052024.txt', header = TRUE, sep='\t')
+head(TKI)
+TKI$DrugName <- tolower(TKI$DrugName)
+```
+
+
+```{r readDrugNames}
+drug_het_ids <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/DrugIsoformInt/Drug_Het_Ids.tsv', sep=',')
+head(drug_het_ids)
+```
+
+```{r checkThose}
+TKI_drug <- drug_het_ids[drug_het_ids$genericName %in% TKI$DrugName,]
+dMDT_TKI_drug <- dMDT_gene_targeted_by_drug2[dMDT_gene_targeted_by_drug2$drug_name %in% TKI_drug$hetName, ]
+head(dMDT_TKI_drug)
+```
+
+```{r CheckTKENSTs}
+dMDTs_all_cancers_TKI_Drug <- dMDTs_all_cancers %>% dplyr::group_by(Cohort, dMDT) %>%  dplyr::summarise(count = n()) %>% dplyr::filter(dMDT %in% dMDT_TKI_drug$isoform) %>% dplyr::arrange(desc(count))
+dMDTs_all_cancers_TKI_Drug_lost_int <- dMDTs_all_cancers_TKI_Drug[dMDTs_all_cancers_TKI_Drug$dMDT %in% dMDT_TKI_drug[dMDT_TKI_drug$interaction == 'NO', 'isoform']$isoform,]
+head(dMDTs_all_cancers_TKI_Drug_lost_int)
+```
+length(unique(dMDTs_all_cancers_TKI_Drug$dMDT)) 15 cMDT
+
+## Supplementary Figure 8: Cancer Census Genes Calculation
+```{r cancercensusgenes}
+CCG <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/CancerGeneCensus/Cosmic_CancerGeneCensus_Tsv_v98_GRCh38/Cosmic_CancerGeneCensus_v98_GRCh38.tsv', sep='\t', header = TRUE)
+
+head(CCG)
+```
+
+```{r  proteinidCCG}
+string_PPI$protein1 <- gsub("^9606.", "", string_PPI$protein1)
+string_PPI$protein2 <- gsub("^9606.", "", string_PPI$protein2)
+
+ENSG_Protein_Match_CCG <- merge(CCG, ensg_enst_ensp_pdb_pfams[, c(1,2,3,10)], by.x='GENE_SYMBOL', 'Gene.name')
+ENSG_Protein_Match_CCG_canonical <- unique(ENSG_Protein_Match_CCG[ENSG_Protein_Match_CCG$Protein.stable.ID %in% string_PPI$protein1, 'Protein.stable.ID'])
+```
+
+```{r  proteiniddMDT}
+# disrupted
+string_400PPI <- string_PPI %>% dplyr::filter(combined_score >= 400)
+
+string_400PPI$protein1 <- gsub("^9606.", "", string_400PPI$protein1)
+string_400PPI$protein2 <- gsub("^9606.", "", string_400PPI$protein2)
+
+
+ENSG_list_some_disrupted <- as.vector(Switches_Events_All %>% dplyr::filter(ensps_missed != '' & ensps_kept == '') %>% dplyr::select(ENSG.x) %>% dplyr::distinct())
+
+ENSG_Protein_Match_dMDT_distruptedPPI <- ensg_enst_ensp_pdb_pfams[ensg_enst_ensp_pdb_pfams$Gene.stable.ID %in% ENSG_list_some_disrupted$ENSG.x, ]
+
+ENSG_Protein_Match_dMDT_distruptedPPI_canonical <- unique(ENSG_Protein_Match_dMDT_distruptedPPI[ENSG_Protein_Match_dMDT_distruptedPPI$Protein.stable.ID %in% string_400PPI$protein1, 'Protein.stable.ID'])
+
+
+# Non Disrupted
+ENSG_list_all_all_NonDisrupted <- unique(dMDTs_all_cancers[!dMDTs_all_cancers$ENSG %in% ENSG_list_some_disrupted$ENSG.x, 'ENSG'])
+
+ENSG_Protein_Match_dMDT_NondistruptedPPI <- ensg_enst_ensp_pdb_pfams[ensg_enst_ensp_pdb_pfams$Gene.stable.ID %in% ENSG_list_all_all_NonDisrupted, ]
+
+ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical <- unique(ENSG_Protein_Match_dMDT_NondistruptedPPI[ENSG_Protein_Match_dMDT_NondistruptedPPI$Protein.stable.ID %in% string_400PPI$protein1, 'Protein.stable.ID'])
+
+```
+
+
+```{r calculateDistances}
+library(igraph)
+#string_400PPI <- string_PPI %>% dplyr::filter(combined_score >= 400)
+#
+#string_400PPI$protein1 <- gsub("^9606.", "", string_400PPI$protein1)
+#string_400PPI$protein2 <- gsub("^9606.", "", string_400PPI$protein2)
+
+graph <- graph.data.frame(string_400PPI, directed = FALSE)
+
+cancer_census <- intersect(V(graph)$name, ENSG_Protein_Match_CCG_canonical)
+
+dist_matrix_disrupted <- distances(graph, v = ENSG_Protein_Match_dMDT_distruptedPPI_canonical, to = ENSG_Protein_Match_CCG_canonical) 
+
+# select only ones found in STRING network
+ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical_stringavailable <- ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical[ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical %in% string_400PPI$protein1] 
+
+dist_matrix_Nondisrupted <- distances(graph, v = ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical_stringavailable, to = ENSG_Protein_Match_CCG_canonical)
+
+
+## Random DATA
+# Create a random set of proteins
+set.seed(123)  # For reproducibility
+random_proteins <- sample(V(graph)$name, 500)
+
+# Calculate shortest paths
+random_paths <- distances(graph, v = random_proteins, to = ENSG_Protein_Match_CCG_canonical)
+
+# Find the maximum distance
+#max_distance <- max(random_paths, na.rm = TRUE)
+#print(max_distance)
+```
+
+How many cancer census genes in our dMDT? 
+length(unique(intersect(ENSG_Protein_Match_dMDT_distruptedPPI_canonical, ENSG_Protein_Match_CCG_canonical)))
+[1] 50
+
+```{r df}
+distances_df_Disrupted <- as.data.frame(dist_matrix_disrupted, row.names = ENSG_Protein_Match_dMDT_distruptedPPI_canonical)
+
+distances_df_NonDisrupted <- as.data.frame(dist_matrix_Nondisrupted, row.names = ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical)
+
+distances_df_random <- as.data.frame(random_paths, row.names = random_proteins)
+
+
+#colnames(distances_df_Disrupted) <- cancer_census
+#
+#colnames(distances_df_NonDisrupted) <- cancer_census
+#
+#colnames(distances_df_random) <- cancer_census
+```
+
+```{r visualize_ccg}
+library(ggplot2)
+library(tidyverse)
+# Assuming distances_df is the dataframe containing the distances
+# Convert row names to a column
+
+distances_long_random <- tibble::rownames_to_column(distances_df_random, "Protein")
+distances_long_random_long <- distances_long_random %>% 
+  gather(key = "Variable", value = "distance", -Protein)
+distances_long_random_long$Category <- 'Random'
+
+distances_long_disrupted <- tibble::rownames_to_column(distances_df_Disrupted, "Protein")
+distances_long_disrupted_long <- distances_long_disrupted %>% 
+  gather(key = "Variable", value = "distance", -Protein)
+distances_long_disrupted_long$Category <- 'Disrupted'
+
+distances_long_NonDisrupted <- tibble::rownames_to_column(distances_df_NonDisrupted, "Protein")
+distances_long_NonDisrupted_long <- distances_long_NonDisrupted %>% 
+  gather(key = "Variable", value = "distance", -Protein)
+distances_long_NonDisrupted_long$Category <- 'NonDisrupted'
+
+
+# Optionally, you can remove any rows with NA values (if any)
+distances_long_disrupted_long <- distances_long_disrupted_long[complete.cases(distances_long_disrupted_long), ]
+distances_long_NonDisrupted_long <- distances_long_NonDisrupted_long[complete.cases(distances_long_NonDisrupted_long), ]
+
+distances_long <- rbind(distances_long_disrupted_long, distances_long_NonDisrupted_long, distances_long_random_long)
+distances_long_uniq <- distances_long %>% dplyr::distinct()
+```
+
+```{r get_shortes}
+distances_long_uniq_shortest <-  distances_long_uniq %>%
+  group_by(Protein, Category) %>%
+  summarise(min_distance = min(distance))
+
+distances_long_uniq_shortest_rel <- distances_long_uniq %>%
+    group_by(Category, distance) %>%
+    summarise(count = n()) %>%
+    ungroup() %>%
+    group_by(Category) %>%
+    mutate(percentage = count/sum(count))
+
+distances_long_uniq_shortest_rel2_min <- distances_long_uniq_shortest %>% ungroup() %>%
+    group_by(Category, min_distance) %>%
+    summarise(count = n()) %>%
+    ungroup() %>%
+    group_by(Category) %>%
+    mutate(percentage = count/sum(count))
+```
+
+```{r visualize_shortest_path}
+# Create the plot
+# Load the necessary library
+library(ggplot2)
+
+# Create the plot
+ggplot(distances_long_uniq_shortest, aes(x = as.factor(min_distance), fill = Category)) + 
+  geom_bar(position = "dodge") +
+  labs(x = "Minimum Distance", y = "Count", fill = "Category") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+
+my_palette_ccg <- c("#7ecc92",
+"#22b948",
+"#07661f")
+
+# Create the plot
+ggplot(distances_long_uniq_shortest_rel, aes(x = as.factor(distance) ,  y=percentage, fill = Category)) + 
+  geom_bar(position = "dodge", stat='identity') +
+  labs(x = "Minimum Distance", y = "Relative Frequency", fill = "Category") +
+  scale_fill_manual(values = my_palette_ccg) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + theme_classic()  + scale_fill_brewer(palette="Paired") # Rotate x-axis labels for better visibility
+
+ggplot(distances_long_uniq_shortest_rel2_min, aes(x = as.factor(min_distance) ,  y=percentage, fill = Category)) + 
+  geom_bar(position = "dodge", stat='identity') +
+  labs(x = "Minimum Distance", y = "Relative Frequency", fill = "Category") +
+  scale_fill_manual(values = my_palette_ccg) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + theme_classic()  + scale_fill_brewer(palette="Paired")
+
+## boxplot
+distances_long_uniq_shortest_rel$Category <- factor(distances_long_uniq_shortest_rel$Category, levels = unique(distances_long_uniq_shortest_rel$Category))
+
+
+p_ccg <- ggplot(distances_long_uniq_shortest_rel, aes(x = Category, y = distance, color = Category)) +
+    geom_boxplot() +
+    scale_color_manual(values = my_palette_ccg)  # use the color palette
+
+p_ccg + theme_classic()  + scale_fill_brewer(palette="Paired")
+
+
+
+p_ccg2 <- ggplot(distances_long_uniq_shortest_rel2_min, aes(x = Category, y = min_distance, color = Category)) +
+    geom_boxplot() +
+    scale_color_manual(values = my_palette_ccg)  # use the color palette
+
+p_ccg2 + theme_classic()  + scale_fill_brewer(palette="Paired")
+```
+
+
+## ClinVar Genes
+```{r ClinVar}
+OncoKB_CancerList <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/cancerGeneList.tsv', sep='\t', header = TRUE)
+
+head(OncoKB_CancerList)
+```
+
+```{r clinvar2}
+ENSG_Protein_Match_oncoKB <- merge(OncoKB_CancerList, ensg_enst_ensp_pdb_pfams[, c(1,2,3,10)], by.x='Hugo.Symbol', 'Gene.name')
+
+ENSG_Protein_Match_oncoKB_canonical <- unique(ENSG_Protein_Match_oncoKB[ENSG_Protein_Match_oncoKB$Protein.stable.ID %in% string_400PPI$protein1, 'Protein.stable.ID'])
+
+
+dist_matrix_disrupted <- distances(graph, v = ENSG_Protein_Match_dMDT_distruptedPPI_canonical, to = ENSG_Protein_Match_oncoKB_canonical) 
+dist_matrix_Nondisrupted <- distances(graph, v = ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical_stringavailable, to = ENSG_Protein_Match_oncoKB_canonical)
+
+## Random DATA
+# Create a random set of proteins
+set.seed(123)  # For reproducibility
+#random_proteins <- sample(V(graph)$name, 500)
+
+# Calculate shortest paths
+random_paths <- distances(graph, v = random_proteins, to = ENSG_Protein_Match_oncoKB_canonical)
+
+distances_df_Disrupted <- as.data.frame(dist_matrix_disrupted, row.names = ENSG_Protein_Match_dMDT_distruptedPPI_canonical)
+
+distances_df_NonDisrupted <- as.data.frame(dist_matrix_Nondisrupted, row.names = ENSG_Protein_Match_dMDT_NondistruptedPPI_canonical)
+
+distances_df_random <- as.data.frame(random_paths, row.names = random_proteins)
+
+
+distances_long_random <- tibble::rownames_to_column(distances_df_random, "Protein")
+distances_long_random_long <- distances_long_random %>% 
+  gather(key = "Variable", value = "distance", -Protein)
+distances_long_random_long$Category <- 'Random'
+
+distances_long_disrupted <- tibble::rownames_to_column(distances_df_Disrupted, "Protein")
+distances_long_disrupted_long <- distances_long_disrupted %>% 
+  gather(key = "Variable", value = "distance", -Protein)
+distances_long_disrupted_long$Category <- 'Disrupted'
+
+distances_long_NonDisrupted <- tibble::rownames_to_column(distances_df_NonDisrupted, "Protein")
+distances_long_NonDisrupted_long <- distances_long_NonDisrupted %>% 
+  gather(key = "Variable", value = "distance", -Protein)
+distances_long_NonDisrupted_long$Category <- 'NonDisrupted'
+
+
+distances_long_disrupted_long <- distances_long_disrupted_long[complete.cases(distances_long_disrupted_long), ]
+distances_long_NonDisrupted_long <- distances_long_NonDisrupted_long[complete.cases(distances_long_NonDisrupted_long), ]
+
+distances_long <- rbind(distances_long_disrupted_long, distances_long_NonDisrupted_long, distances_long_random_long)
+
+distances_long_uniq <- distances_long %>% dplyr::distinct()
+
+
+distances_long_uniq_shortest <-  distances_long_uniq %>%
+  group_by(Protein, Category) %>%
+  summarise(min_distance = min(distance))
+
+distances_long_uniq_shortest_rel2_min <- distances_long_uniq_shortest %>% ungroup() %>%
+    group_by(Category, min_distance) %>%
+    summarise(count = n()) %>%
+    ungroup() %>%
+    group_by(Category) %>%
+    mutate(percentage = count/sum(count))
+
+ggplot(distances_long_uniq_shortest_rel2_min, aes(x = as.factor(min_distance) ,  y=percentage, fill = Category)) + 
+  geom_bar(position = "dodge", stat='identity') +
+  labs(x = "Minimum Distance", y = "Relative Frequency", fill = "Category") +
+  scale_fill_manual(values = my_palette_ccg) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + theme_classic()   + scale_fill_brewer(palette="Paired")
+```
+
