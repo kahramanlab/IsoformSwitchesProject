@@ -111,9 +111,9 @@ maf_barcode_ids_mutations <- merge(maf_barcode_ids, maf_df, by= 'Tumor_Sample_Ba
 ```
 
 ```{r read_switches}
-dMDT_Melanoma_tcga_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/Switches_TCGA_Pri_GTEx.RDS')
+dMDT_Melanoma_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Pri_GTEx.RDS')
 
-dMDT_Melanoma_tcga_metastatis <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/Switches_TCGA_Met_GTEx.RDS')
+dMDT_Melanoma_tcga_metastatis <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Met_GTEx.RDS')
 ```
 
 ```{r TCGA_id_convert}
@@ -214,7 +214,7 @@ plot(dMDT_Melanoma_tcga_correlations_CORR2$total, dMDT_Melanoma_tcga_correlation
 maf <- GDCprepare(query)
 maf_genes <- maf %>% dplyr::select(Hugo_Symbol, Variant_Classification, Tumor_Sample_UUID, case_id, Gene, Consequence) %>% dplyr::distinct()
 
-Spliceosome_file <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/Final_MDTs_Switches/Spliceosome/idmapping_2023_07_02.tsv', header = TRUE, sep = '\t')
+Spliceosome_file <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Spliceosome/idmapping_2023_07_02.tsv', header = TRUE, sep = '\t')
 head(Spliceosome_file)
 
 Spliceosome_file$To <- gsub("\\..*", "", Spliceosome_file$To)
@@ -292,7 +292,7 @@ maf_barcode_ids_mutations_ovary <- merge(maf_barcode_ids_Ovary, maf_df_ovary, by
 
 
 ```{r read_switches}
-dMDT_Ovary_tcga_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/TCGA_GTEx_ov_Switch.RDS')
+dMDT_Ovary_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/TCGA_GTEx_ov_Switch.RDS')
 
 ```
 
@@ -409,7 +409,7 @@ maf_barcode_ids_mutations_AML <- merge(maf_barcode_ids_AML, maf_df_AML, by= 'Tum
 ```
 
 ```{r read_switches}
-dMDT_AML_tcga_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/Switches/Switches_TCGA_GTEx.RDS')
+dMDT_AML_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/AML/Switches/Switches_TCGA_GTEx.RDS')
 
 ```
 
@@ -533,11 +533,6 @@ Spliceosome_Mut_Switch_Mel <- ggplot(dMDT_count_Cohort, aes(x=Cohort, y=total_dM
 Spliceosome_Mut_Switch_AML <- ggplot(dMDT_count_Cohort_AML, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot(notch = FALSE) + theme_classic() + scale_fill_brewer(palette="OrRd") + stat_compare_means(comparisons = comparison_AML)
 
 Spliceosome_Mut_Switch_Ov <- ggplot(dMDT_count_Cohort_Ov, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot(notch = FALSE) + theme_classic() + scale_fill_brewer(palette="RdPu") + stat_compare_means(comparisons = comparison_Ov)
-
-
-ggsave("/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/Spliceosome_Mut_Switch_Mel.png", plot = Spliceosome_Mut_Switch_Mel, bg = "transparent", width = 10, height = 8)
-ggsave("/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/Spliceosome_Mut_Switch_AML.png", plot = Spliceosome_Mut_Switch_AML, bg = "transparent", width = 10, height = 8)
-ggsave("/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/Spliceosome_Mut_Switch_Ov.png", plot = Spliceosome_Mut_Switch_Ov, bg = "transparent", width = 10, height = 8)
 ```
 
 
