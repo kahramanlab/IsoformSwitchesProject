@@ -1,6 +1,5 @@
 ---
-title: "Manuscript File 1 Revision - Figures"
-author: "Tülay Karakulak"
+title: "Manuscript File 1"
 date: "2025-02-27"
 output: 
   flexdashboard::flex_dashboard:
@@ -44,32 +43,24 @@ length(unique(tuPro_primary_tpm[tuPro_primary_tpm$ENSG %in% biomart_gene_types[b
 ## MDT Analysis Across All Datasets
 ```{r MDT_Numbers, warning=FALSE, message=FALSE}
 # ovary
-MDTs_Ovary_GTEx <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/MDTs/GTEx_MDTs_ov_for_comparison_2.RDS')
-
-MDTs_Ovary_TCGA <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/MDTs/tcga_MDTs_ov.RDS')
-
-MDTs_Ovary_TuPro_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/MDTs/tuPro_MDTs_ov_primary.RDS')
-
-MDTs_Ovary_TuPro_metastatic <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/MDTs/tuPro_MDTs_ov_metastatic.RDS')
+MDTs_Ovary_GTEx <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Ovary_OvarianCancer/GTEx_MDTs_ov_for_comparison_2.RDS')
+MDTs_Ovary_TCGA <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Ovary_OvarianCancer/tcga_MDTs_ov.RDS')
+MDTs_Ovary_TuPro_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Ovary_OvarianCancer/tuPro_MDTs_ov_primary.RDS')
+MDTs_Ovary_TuPro_metastatic <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Ovary_OvarianCancer/tuPro_MDTs_ov_metastatic.RDS')
 
 # melanoma
-MDTs_Melanoma_GTEx <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/MDTs/GTEx_MDTs_mel_2.RDS')
-
-MDTs_Melanoma_TCGA_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/MDTs/tcga_primary_MDTs_mel.RDS')
-
-MDTs_Melanoma_TCGA_metas <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/MDTs/tcga_metastatic_MDTs_mel.RDS')
-
-MDTs_Melanoma_TuPro <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/MDTs/tuPro_MDTs_mel.RDS')
+MDTs_Melanoma_GTEx <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Skin_Melanoma/GTEx_MDTs_mel_2.RDS')
+MDTs_Melanoma_TCGA_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Skin_Melanoma/tcga_primary_MDTs_mel.RDS')
+MDTs_Melanoma_TCGA_metas <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Skin_Melanoma/tcga_metastatic_MDTs_mel.RDS')
+MDTs_Melanoma_TuPro <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Skin_Melanoma/tuPro_MDTs_mel.RDS')
 
 # aml
-MDTs_AML_GTEx <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/MDTs/GTEx_MDTs_AML_for_comparison_2.RDS')
-
-MDTs_AML_TCGA <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/MDTs/tcga_MDTs_AML.RDS')
-
-MDTs_AML_TuPro <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/MDTs/tuPro_MDTs_AML.RDS')
+MDTs_AML_GTEx <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Blood_AML/GTEx_MDTs_AML_for_comparison_2.RDS')
+MDTs_AML_TCGA <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Blood_AML/tcga_MDTs_AML.RDS')
+MDTs_AML_TuPro <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/MDT/Blood_AML/tuPro_MDTs_AML.RDS')
 ```
 
-## Prepare Data for Figure 2A
+## Figure 2A Data prep
 ```{r VisualizeMDTs, echo=FALSE, warning=FALSE, message=FALSE}
 library(dplyr)
 # Ovary
@@ -164,10 +155,6 @@ a <- ggplot(NumberOfSamples, aes(x=Cohort, y = nSample, fill = Cohort)) +
     ylim(0, 500)
 
 a + theme(axis.text.x = element_blank(), legend.text = element_blank()) 
-
-#svg(filename = "/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/Figure_NumberOfSamples.svg", width = 8, height = 6)
-#print(a)
-#dev.off()
 ```
 
 ### Total number of genes with MDTs across samples
@@ -194,11 +181,6 @@ p <- ggplot(MDT_counts_per_samples, aes(x = type, y = n, color = type)) +
 
 p + theme(axis.text.x = element_blank(), legend.text = element_blank()) 
 
-#svg(filename = "/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/Figure_NumberOfMDTs.svg", width = 8, height = 6)
-#ggsave("/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Figures/Figure_NumberOfMDTs.png", plot = p, bg = "transparent", width = 6, height = 5)
-
-#print(p)
-#dev.off()
 ```
 
 ### Total number of Genes with a MDT -  it is identified for almost every gene. 
@@ -262,7 +244,7 @@ MDT_rates_per_samples <- rbind(cbind(type = rep('GTEx_Mel', dim(MDTs_Melanoma_GT
 median(MDT_rates_per_samples$rate) # 5.44
 
 ```{r ProteinCoding, warning=FALSE, message=FALSE}
-biomart_gene_types <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/ensg_genetype.txt', sep='\t', header = TRUE)
+biomart_gene_types <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/ensg_genetype.txt', sep='\t', header = TRUE)
 dim(biomart_gene_types)
 #[1] 67128     2
 gene_names_pc <- biomart_gene_types[biomart_gene_types$Gene.type == 'protein_coding', 1]
@@ -708,7 +690,7 @@ All_Biomarker_candidates <- All_Biomarker_candidates %>% dplyr::distinct()
 
 # Check Transmembrane Proteins
 ```{r readIDs}
-TM_proteins <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Transmembrane_Proteins/idmapping_2024_05_11.tsv', header = TRUE, sep = '\t')
+TM_proteins <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Transmembrane_Proteins/idmapping_2024_05_11.tsv', header = TRUE, sep = '\t')
 TM_proteins$To <- gsub("\\..*", "", TM_proteins$To)
 head(TM_proteins)
 ```
