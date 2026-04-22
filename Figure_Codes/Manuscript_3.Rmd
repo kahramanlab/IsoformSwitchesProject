@@ -51,12 +51,12 @@ dMDT_AML_tuPro <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/
 
 ```{r read_isoform_isoform_int_network}
 # score 900
-Iso_Iso_Network_v12 <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Iso_Iso_Network/interactionsInIsoforms_400_2_status_withTitin_withoutWARNING.tsv', sep='\t', header = TRUE)
+Iso_Iso_Network_v12 <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Networks/IsoformNetwork/interactionsInIsoforms_400_2_status_withTitin_withoutWARNING.tsv', sep='\t', header = TRUE)
 head(Iso_Iso_Network_v12)
 ```
 
 ```{r read_string_PPI}
-string_PPI <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Iso_Iso_Network/9606.protein.links.detailed.v12.0.txt', sep=' ', header = TRUE)
+string_PPI <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Networks/IsoformNetwork/9606.protein.links.detailed.v12.0.txt', sep=' ', header = TRUE)
 string_900PPI <- string_PPI %>% dplyr::filter(combined_score >= 900)
 head(string_900PPI)
 ```
@@ -248,14 +248,14 @@ print(plot3)
 
 ### Integrate Isoform Interaction Network to dMDT Findings
 ```{r readExpression, warning=FALSE, message=FALSE}
-ov_tcga_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
-ov_tuPro_tpm_NR_primary <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_primary.RDS')
-ov_tuPro_tpm_NR_metastatic <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_metastatic.RDS')
-mel_tcga_primary_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_primary_tpm_NR.RDS')
-mel_tcga_metastatic_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_metastatic_tpm_NR.RDS')
-mel_tuPro_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
-AML_tcga_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
-AML_tuPro_tpm_NR <- readRDS('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
+ov_tcga_tpm_NR <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/tcga_tpm_NR.RDS')
+ov_tuPro_tpm_NR_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/tuPro_tpm_NR_primary.RDS')
+ov_tuPro_tpm_NR_metastatic <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/tuPro_tpm_NR_metastatic.RDS')
+mel_tcga_primary_tpm_NR <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tcga_primary_tpm_NR.RDS')
+mel_tcga_metastatic_tpm_NR <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tcga_metastatic_tpm_NR.RDS')
+mel_tuPro_tpm_NR <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tuPro_tpm_NR.RDS')
+AML_tcga_tpm_NR <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Blood_AML/tcga_tpm_NR.RDS')
+AML_tuPro_tpm_NR <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Blood_AML/tuPro_tpm_NR.RDS')
 ```
 
 
@@ -266,47 +266,40 @@ ENSG_ENST_ENSP_Pfam <- MDTToolset::ENSG_ENST_ENSP_Pfam
 # Ovary TCGA Network
 dMDTs_IsoNetwork_Ov_tcga <- merge(dMDTs_Ovary_tcga, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_Ov_tcga <- dMDTs_IsoNetwork_Ov_tcga[dMDTs_IsoNetwork_Ov_tcga$MissInts != '-' | dMDTs_IsoNetwork_Ov_tcga$ExistInts != '-',]
-#Switching_Events_Network_Ov_tcga <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tcga, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_Ov_tcga <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tcga, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Ov_tcga <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tcga, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
 
 ## Ovary TuPro Network
 dMDTs_IsoNetwork_Ov_tuPro <- merge(dMDT_Ovary_tuPro_primary, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_Ov_tuPro <- dMDTs_IsoNetwork_Ov_tuPro[dMDTs_IsoNetwork_Ov_tuPro$MissInts != '-' | dMDTs_IsoNetwork_Ov_tuPro$ExistInts != '-',]
-#Switching_Events_Network_Ov_tuPro_primary <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_primary, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_Ov_tuPro_primary <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_primary, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Ov_tuPro_primary <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_primary, iso_network = Iso_Iso_Network_v12)
 
 ## Ovary TuPro Metas Network
 
 dMDTs_IsoNetwork_Ov_tuPro_met <- merge(dMDT_Ovary_tuPro_metastatis, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_Ov_tuPro_met <- dMDTs_IsoNetwork_Ov_tuPro_met[dMDTs_IsoNetwork_Ov_tuPro_met$MissInts != '-' | dMDTs_IsoNetwork_Ov_tuPro_met$ExistInts != '-',]
-#Switching_Events_Network_Ov_tuPro_met <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_metastatic, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_Ov_tuPro_met <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_metastatic, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Ov_tuPro_met <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Ov_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = ov_tuPro_tpm_NR_metastatic, iso_network = Iso_Iso_Network_v12)
 
 ## Melanoma TCGA Primary Network
 
 dMDTs_IsoNetwork_Mel_tcga_pri <- merge(dMDT_Melanoma_tcga_primary, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_Mel_tcga_pri <- dMDTs_IsoNetwork_Mel_tcga_pri[dMDTs_IsoNetwork_Mel_tcga_pri$MissInts != '-' | dMDTs_IsoNetwork_Mel_tcga_pri$ExistInts != '-',]
-#Switching_Events_Network_Mel_tcga_Pri <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_pri, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_primary_tpm_NR, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_Mel_tcga_Pri <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_pri, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_primary_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Mel_tcga_Pri <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_pri, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_primary_tpm_NR, iso_network = Iso_Iso_Network_v12)
 
 ## Melanoma TCGA Met Network
 
 dMDTs_IsoNetwork_Mel_tcga_met <- merge(dMDT_Melanoma_tcga_metastatis, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_Mel_tcga_met <- dMDTs_IsoNetwork_Mel_tcga_met[dMDTs_IsoNetwork_Mel_tcga_met$MissInts != '-' | dMDTs_IsoNetwork_Mel_tcga_met$ExistInts != '-',]
-#Switching_Events_Network_Mel_tcga_met  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_metastatic_tpm_NR, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_Mel_tcga_met  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_metastatic_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Mel_tcga_met  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tcga_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tcga_metastatic_tpm_NR, iso_network = Iso_Iso_Network_v12)
 
 ## Melanoma TuPro Network
 dMDTs_IsoNetwork_Mel_tuPro_met <- merge(dMDT_Melanoma_tupro, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_Mel_tuPro_met <- dMDTs_IsoNetwork_Mel_tuPro_met[dMDTs_IsoNetwork_Mel_tuPro_met$MissInts != '-' | dMDTs_IsoNetwork_Mel_tuPro_met$ExistInts != '-',]
-#Switching_Events_Network_Mel_tuPro_met  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_Mel_tuPro_met  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_Mel_tuPro_met  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_Mel_tuPro_met, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = mel_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
 
 ## AML TCGA Network
 dMDTs_IsoNetwork_AML_tcga <- merge(dMDT_AML_tcga, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_AML_TCGA <- dMDTs_IsoNetwork_AML_tcga[dMDTs_IsoNetwork_AML_tcga$MissInts != '-' | dMDTs_IsoNetwork_AML_tcga$ExistInts != '-',]
-#Switching_Events_Network_AML_TCGA  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TCGA, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_AML_TCGA  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TCGA, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_AML_TCGA  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TCGA, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tcga_tpm_NR, iso_network = Iso_Iso_Network_v12)
 ```
 
 
@@ -314,8 +307,7 @@ Switching_Events_Network_AML_TCGA  <- buildIsoNet2(dMDT_network_info = dMDTs_Iso
 ## AML tuPro Network
 dMDTs_IsoNetwork_AML_tupro <- merge(dMDT_AML_tuPro, Iso_Iso_Network_v12, by.x='dMDT', by.y='ENST')
 dMDTs_IsoNetwork_int_AML_TuPro <- dMDTs_IsoNetwork_AML_tupro[dMDTs_IsoNetwork_AML_tupro$MissInts != '-' | dMDTs_IsoNetwork_AML_tupro$ExistInts != '-',]
-#Switching_Events_Network_AML_TuPro  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
-Switching_Events_Network_AML_TuPro  <- buildIsoNet2(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
+Switching_Events_Network_AML_TuPro  <- MDTToolset::buildIsoNet(dMDT_network_info = dMDTs_IsoNetwork_int_AML_TuPro, ensembl_data = ENSG_ENST_ENSP_Pfam, kallisto_counts = AML_tuPro_tpm_NR, iso_network = Iso_Iso_Network_v12)
 ```
 
 
@@ -384,7 +376,6 @@ Switching_Events_Network_Ov_tcga$Cohort  <- 'TCGA_Ovary'
 
 Switches_Events_All <- rbind(Switching_Events_Network_AML_TuPro, Switching_Events_Network_AML_TCGA, Switching_Events_Network_Mel_tuPro_met, Switching_Events_Network_Mel_tcga_met, Switching_Events_Network_Mel_tcga_Pri, Switching_Events_Network_Ov_tuPro_met, Switching_Events_Network_Ov_tuPro_primary, Switching_Events_Network_Ov_tcga)
 
-#saveRDS(Switches_Events_All, '/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Switches_Events_NetworkDistruption_All.RDS')
 ```
 
 
@@ -493,124 +484,6 @@ plot3 <- ggplot(dMDT_switch_profile, aes(x = hsize, y = Number, fill = Types)) +
 plot3
 ```
 
-```{r FunctionBuildIsoNet}
-
-buildIsoNet2 <- function (dMDT_network_info, ensembl_data, iso_network, kallisto_counts) 
-{
-  dMDT_int_Loss_all <- data.frame()
-  for (each_sample in unique(dMDT_network_info$SampleID)) {
-    sample_kallisto <- kallisto_counts[, c("ENST", "ENSG", 
-      each_sample)]
-    sample_dMDTs <- dMDT_network_info[dMDT_network_info$SampleID == 
-      each_sample, ]
-    for (each_dMDT in unique(sample_dMDTs$dMDT)) {
-      ensp_expressed_missed <- c()
-      ensp_expressed_kept <- c()
-      each_dMDT_in_sample <- sample_dMDTs[sample_dMDTs$dMDT == 
-        each_dMDT, ]
-      miss_ints <- each_dMDT_in_sample[each_dMDT_in_sample$dMDT == 
-        each_dMDT, "MissInts"]
-      kept_ints <- each_dMDT_in_sample[each_dMDT_in_sample$dMDT == 
-        each_dMDT, "ExistInts"]
-      miss_protein_ints <- regmatches(miss_ints, gregexpr("ENSP\\d+", 
-        miss_ints))[[1]]
-      kept_protein_ints <- regmatches(kept_ints, gregexpr("ENSP\\d+", 
-        kept_ints))[[1]]
-      if (length(miss_protein_ints) > 0) {
-        for (each_protein in miss_protein_ints) {
-          ENST_id_missed <- unique(ensembl_data[ensembl_data$Protein.stable.ID == 
-            each_protein, "Transcript.stable.ID"])
-          ENST_id_expression_missed <- sample_kallisto[sample_kallisto$ENST == 
-            ENST_id_missed, 3]
-          if (length(ENST_id_expression_missed) > 0 && 
-            as.numeric(ENST_id_expression_missed) >= 
-              2) {
-            ensp_expressed_missed <- append(ensp_expressed_missed, 
-              each_protein)
-          }
-          else {
-            ensp_expressed_missed <- append(ensp_expressed_missed, 
-              "Not_expressed")
-          }
-        }
-      }
-      else {
-        ensp_expressed_missed <- append(ensp_expressed_missed, 
-          "No missed int")
-      }
-      if (length(kept_protein_ints) > 0) {
-        for (each_protein_kept in kept_protein_ints) {
-          ENST_id_kept <- unique(ensembl_data[ensembl_data$Protein.stable.ID == 
-            each_protein_kept, "Transcript.stable.ID"])
-          ENST_id_expression_kept <- sample_kallisto[sample_kallisto$ENST == 
-            ENST_id_kept, 3]
-          if (length(ENST_id_expression_kept) > 0 && 
-            as.numeric(ENST_id_expression_kept) >= 2) {
-            ensp_expressed_kept <- append(ensp_expressed_kept, 
-              each_protein_kept)
-          }
-          else {
-            ensp_expressed_kept <- append(ensp_expressed_kept, 
-              "Not_expressed")
-          }
-        }
-      }
-      else {
-        ensp_expressed_kept <- append(ensp_expressed_kept, 
-          "No kept int")
-      }
-      MDT_in_samples <- each_dMDT_in_sample %>% tidyr::separate_rows(MDT_GTEx, 
-        sep = ",")
-      # MDT_in_sample <- unique(each_dMDT_in_sample[, "MDT_GTEx"])
-      MDT_in_sample <- unique(unlist(strsplit(each_dMDT_in_sample$MDT_GTEx, ",")))
-      for (eachMDT in MDT_in_sample) {
-        MDT_ENSP <- unique(ensembl_data[ensembl_data$Transcript.stable.ID == 
-          eachMDT, "Protein.stable.ID"])
-        Canonical_STRING_ENSP <- each_dMDT_in_sample[, 
-          "STRINGensp"]
-        if (length(MDT_ENSP) > 0) {
-          if (MDT_ENSP != Canonical_STRING_ENSP) {
-            MDT_int_losts <- iso_network[iso_network$ENST == 
-              eachMDT, "MissInts"]
-            MDT_int_losts_ensps <- regmatches(miss_ints, 
-              gregexpr("ENSP\\d+", MDT_int_losts))[[1]]
-            int_losts_in_sample <- ensp_expressed_missed[!ensp_expressed_missed %in% 
-              MDT_int_losts_ensps]
-            int_losts_in_mdt <- ensp_expressed_missed[ensp_expressed_missed %in% 
-              MDT_int_losts_ensps]
-            each_dMDT_in_sample$ensp_expressed_missed <- unique(paste(ensp_expressed_missed, 
-              collapse = ","))
-            each_dMDT_in_sample$ensp_expressed_kept <- unique(paste(ensp_expressed_kept, 
-              collapse = ","))
-            each_dMDT_in_sample$int_losts_in_mdt <- unique(paste(int_losts_in_mdt, 
-              collapse = ","))
-          }
-          else if (MDT_ENSP == Canonical_STRING_ENSP) {
-            each_dMDT_in_sample$ensp_expressed_missed <- unique(paste(ensp_expressed_missed, 
-              collapse = ","))
-            each_dMDT_in_sample$ensp_expressed_kept <- unique(paste(ensp_expressed_kept, 
-              collapse = ","))
-            each_dMDT_in_sample$int_losts_in_mdt <- "Canonical"
-          }
-        }
-        else {
-          each_dMDT_in_sample$ensp_expressed_missed <- unique(paste(ensp_expressed_missed, 
-            collapse = ","))
-          each_dMDT_in_sample$ensp_expressed_kept <- unique(paste(ensp_expressed_kept, 
-            collapse = ","))
-          each_dMDT_in_sample$int_losts_in_mdt <- "MDT_is_not_found"
-        }
-        dMDT_int_Loss_all <- rbind(dMDT_int_Loss_all, 
-          each_dMDT_in_sample)
-      }
-    }
-  }
-  return(dMDT_int_Loss_all)
-}
-
-```
-
-
 
 ## Isoform Drug Interaction Integration
 ```{r read_drugIso}
@@ -625,7 +498,7 @@ length(unique(isoform_drug_database$isoform))
 length(unique(isoform_drug_database$drug_name))
 ```
 ```{r codingseq}
-ensg_enst_ensp_pdb_pfams <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/mart_export.txt', sep='\t', header=TRUE)
+ensg_enst_ensp_pdb_pfams <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Biomart/mart_export.txt', sep='\t', header=TRUE)
 head(ensg_enst_ensp_pdb_pfams)
 
 protein_coding_ensts <- ensg_enst_ensp_pdb_pfams[ensg_enst_ensp_pdb_pfams$Transcript.type == 'protein_coding', 2]
@@ -737,14 +610,14 @@ print(plot5)
 
 ## Tyrosine Kinase Inhibitors
 ```{r TKIlist}
-TKI <- read.table('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/DrugBank/TKI_Drugs_28052024.txt', header = TRUE, sep='\t')
+TKI <- read.table('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Networks/IsoDrug/TKI_Drugs_28052024.txt', header = TRUE, sep='\t')
 head(TKI)
 TKI$DrugName <- tolower(TKI$DrugName)
 ```
 
 
 ```{r readDrugNames}
-drug_het_ids <- read.csv('/Volumes/PersonalDisk/PhD_Macbook/PhD/Projects/Drug_Isoform/DrugIsoformInt/Drug_Het_Ids.tsv', sep=',')
+drug_het_ids <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Networks/IsoDrug/Drug_Het_Ids.tsv', sep=',')
 head(drug_het_ids)
 ```
 
@@ -763,7 +636,7 @@ length(unique(dMDTs_all_cancers_TKI_Drug$dMDT)) 15 cMDT
 
 ## Supplementary Figure 8: Cancer Census Genes Calculation
 ```{r cancercensusgenes}
-CCG <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/CancerGeneCensus/Cosmic_CancerGeneCensus_Tsv_v98_GRCh38/Cosmic_CancerGeneCensus_v98_GRCh38.tsv', sep='\t', header = TRUE)
+CCG <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/CancerGenes/CosmicCGC/Cosmic_CancerGeneCensus_Tsv_v98_GRCh38/Cosmic_CancerGeneCensus_v98_GRCh38.tsv', sep='\t', header = TRUE)
 
 head(CCG)
 ```
@@ -952,7 +825,7 @@ p_ccg2 + theme_classic()  + scale_fill_brewer(palette="Paired")
 
 ## ClinVar Genes
 ```{r ClinVar}
-OncoKB_CancerList <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/cancerGeneList.tsv', sep='\t', header = TRUE)
+OncoKB_CancerList <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/CancerGenes/OncoKB/cancerGeneList.tsv', sep='\t', header = TRUE)
 
 head(OncoKB_CancerList)
 ```
