@@ -29,11 +29,11 @@ set.seed(12345)
 
 # Check Redundant Transcript Number
 ```{r checkRedundantTranscriptNumber}
-tuPro_primary_tpm <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_primary.RDS')
+tuPro_primary_tpm <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/tuPro_tpm_NR_primary.RDS')
 
-tuPro_primary_tpm_redundant <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/combined_columns.tsv', sep = '\t', header = TRUE, check.names = FALSE)
+tuPro_primary_tpm_redundant <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/redundant.tsv', sep = '\t', header = TRUE, check.names = FALSE)
 
-dim(tuPro_primary_tpm_redundant)[1] - dim(tuPro_primary_tpm)[1] # 507 first column in the redundant one is tpm
+dim(tuPro_primary_tpm_redundant)[1] - dim(tuPro_primary_tpm)[1] # 507 first row in the redundant one is tpm
 ```
 length(unique(tuPro_primary_tpm[tuPro_primary_tpm$ENSG %in% biomart_gene_types[biomart_gene_types$Gene.type == 'protein_coding', 'Gene.stable.ID'],'ENSG']))
 

@@ -28,45 +28,45 @@ set.seed(12345)
 
 ```{r ReadExpFiles}
 # Mel
-Mel_TuPro_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
-Mel_GTEx_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/gtex_tpm_NR.RDS')
-Mel_TCGA_met_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_metastatic_tpm_NR.RDS')
-Mel_TCGA_pri_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/TPMValues/RedundantTPMs/tcga_metastatic_tpm_NR.RDS')
+Mel_TuPro_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tuPro_tpm_NR.RDS')
+Mel_GTEx_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/gtex_tpm_NR.RDS')
+Mel_TCGA_met_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tcga_metastatic_tpm_NR.RDS')
+Mel_TCGA_pri_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tcga_metastatic_tpm_NR.RDS')
 
 
 # Ov
-Ov_TuPro_pri_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_primary.RDS')
-Ov_TuPro_met_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tuPro_tpm_NR_metastatic.RDS')
-Ov_GTEx_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/gtex_tpm_NR.RDS')
-Ov_TCGA_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
+Ov_TuPro_pri_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/tuPro_tpm_NR_primary.RDS')
+Ov_TuPro_met_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/tuPro_tpm_NR_metastatic.RDS')
+Ov_GTEx_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/gtex_tpm_NR.RDS')
+Ov_TCGA_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Ovary_OvarianCancer/tcga_tpm_NR.RDS')
 
 
 # AML
 # Ov
-AML_TuPro_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tuPro_tpm_NR.RDS')
-AML_TCGA_met_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/tcga_tpm_NR.RDS')
-AML_GTEx_exp <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/TPMValues/RedundantTPMs/gtex_tpm_NR.RDS')
+AML_TuPro_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Blood_AML/tuPro_tpm_NR.RDS')
+AML_TCGA_met_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Blood_AML/tcga_tpm_NR.RDS')
+AML_GTEx_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Blood_AML/gtex_tpm_NR.RDS')
 
 ```
 
 
 
-```{r readdMDTs}
-dMDTs_Ovary_tcga <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/CorrectedStat/TCGA_GTEx_ov_Switch.RDS')
+```{r readcMDTs}
+dMDTs_Ovary_tcga <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/TCGA_GTEx_ov_Switch.RDS')
 
-dMDT_Ovary_tuPro_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/CorrectedStat/Switches_TuPro_Pri_GTEx.RDS')
+dMDT_Ovary_tuPro_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Pri_GTEx.RDS')
 
-dMDT_Ovary_tuPro_metastatis <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/CorrectedStat/Switches_TuPro_Met_GTEx.RDS')
+dMDT_Ovary_tuPro_metastatis <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Met_GTEx.RDS')
 
-dMDT_Melanoma_tcga_primary <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/CorrectedStat/Switches_TCGA_Pri_GTEx.RDS')
+dMDT_Melanoma_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Pri_GTEx.RDS')
 
-dMDT_Melanoma_tcga_metastatis <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/CorrectedStat/Switches_TCGA_Met_GTEx.RDS')
+dMDT_Melanoma_tcga_metastatis <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Met_GTEx.RDS')
 
-dMDT_Melanoma_tupro <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Melanoma/Switches/CorrectedStat/Switches_TuPro_GTEx.RDS')
+dMDT_Melanoma_tupro <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TuPro_GTEx.RDS')
 
-dMDT_AML_tcga <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/Switches/CorrectedStat/Switches_TCGA_GTEx.RDS')
+dMDT_AML_tcga <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/AML/Switches_TCGA_GTEx.RDS')
 
-dMDT_AML_tuPro <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/AML/Switches/CorrectedStat/Switches_TuPro_GTEx.RDS')
+dMDT_AML_tuPro <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/AML/Switches_TuPro_GTEx.RDS')
 ```
 
 
@@ -171,7 +171,7 @@ ggplot(PDCD6_dMDTspec, aes(x=data, y=Exp, fill=Cohort)) + geom_boxplot() + theme
 ```
 
 
-# LEG8 in AML
+# USP34 in AML
 ```{r checkExpression3}
 
 # USP34
@@ -425,7 +425,4 @@ USP34_rescaled_exons_fig <- USP34_rescaled_exons %>%
 
 
 USP34_rescaled_exons_fig
-
-# ENST00000436269 mdt
-#ENST00000398571 dMDT
 ```
