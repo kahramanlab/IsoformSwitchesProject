@@ -596,7 +596,7 @@ corr_exp$p.value
 
 ## TCGA data check 
 ```{r read_cMDT_TCGA}
-Switches_Ovary_tcga <- readRDS('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/May2024/Ovary/Switches/TCGA_GTEx_ov_Switch.RDS')
+Switches_Ovary_tcga <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/TCGA_GTEx_ov_Switch.RDS')
 ```
 
 
