@@ -1,382 +1,540 @@
 ---
-title: "ClassIII_Peptides"
+title: "TCGA_Mutation"
 author: "Tülay Karakulak"
-date: "2025-02-25"
+date: "2024-June-04"
 output: html_document
 ---
 
-Ovarian Samples ClassIII Peptides
-Criteria:
-- FDR < 0.1. FDR correction is per gene.
-- Peptides either coming from cMDT or MDT or from both are counted, they should show a differential expression.
-- cMDT genes that are not found in 1st and 2nd Classes.
+# Spliceosome and Mutation Analysis - Supplementary Figure 2
 
-#required libraries
-```{r loadlibraries, echo=FALSE}
-library(tidyverse)
-library(tidyr)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(TCGAbiolinks)
 library(dplyr)
+library(DT)
+library(maftools)
 library(ggplot2)
-library(pheatmap)
-library(sva)
-library(stats)
-library(data.table)
-library(BSDA)
-library(Biostrings)
-library(ggvenn)
-```
-
-We decided to use the normalized value instead of the quantity - and divided by Isoform number.
-
-```{r classIIIpeptideCalc2}
-ClassIII_calc_Norm2 <- function(Main_output_filtered_peptides, DT, Switches_df, all_samples_isolate) {
-  
-results <- data.frame(ENSG = as.character(), MeanCancer = as.numeric(), MeanNormal = as.numeric(), p_value = as.numeric())
-
-for (eachPeptide in unique(Main_output_filtered_peptides$Stripped.Sequence)) {
-  
-  ENSG_id  <- DT[DT$Stripped.Sequence == eachPeptide, 'Genes']$Genes[1]
-  # we should only look at the common samples - and isolate those
-
-  Samples_w_ensg <- Switches_df[Switches_df$ENSG == ENSG_id, 'SampleID']
-  sample_ids_found <- sapply(strsplit(Samples_w_ensg, "/"), "[", 2)
-  samples_ids_nonfound <- setdiff(all_samples_isolate, sample_ids_found)
-  
-  sample_ids_found_quantity <- DT[DT$Sampleid %in% sample_ids_found & DT$Stripped.Sequence ==  eachPeptide, 'NormalizedByGene']
-  
-  if (length(sample_ids_found_quantity$NormalizedByGene) > 1 ) {
-    
-    Isoform <- DT[DT$Sampleid %in% sample_ids_found & DT$Stripped.Sequence ==  eachPeptide, 'Protein.Ids']$Protein.Ids
-    NumberofIsoforms <- length(strsplit(Isoform, ';')[[1]])
-  
-    sample_ids_found_quantity2 <- (sample_ids_found_quantity$NormalizedByGene)/NumberofIsoforms
-    
-    sample_ids_found_quantity_mean <- mean(sample_ids_found_quantity2)
-  } else if (length(sample_ids_found_quantity$NormalizedByGene) == 1) {
-    sample_ids_found_quantity_mean <- 'OneSample'
-  } else {
-    sample_ids_found_quantity_mean <- NA
-  }
-  
-  sample_ids_nonfound_quantity <- DT[DT$Sampleid %in% samples_ids_nonfound & DT$Stripped.Sequence ==  eachPeptide, 'NormalizedByGene',]
-  
-  if(length(sample_ids_nonfound_quantity$NormalizedByGene) > 1 ) {
-    
-    Isoform <- DT[DT$Sampleid %in% samples_ids_nonfound & DT$Stripped.Sequence ==  eachPeptide, 'Protein.Ids']$Protein.Ids
-    
-    NumberofIsoforms <- length(strsplit(Isoform, ';')[[1]])
-  
-    sample_ids_nonfound_quantity2 <- (sample_ids_nonfound_quantity$NormalizedByGene)/NumberofIsoforms
-    
-    sample_ids_nonfound_quantity_mean <- mean(sample_ids_nonfound_quantity2)
-    
-  } else if (length(sample_ids_nonfound_quantity$NormalizedByGene) == 1){
-    sample_ids_nonfound_quantity_mean <- 'OneSample'
-  } else {
-    sample_ids_nonfound_quantity_mean <- NA
-  }
-
-  if(length(sample_ids_found_quantity$NormalizedByGene) > 1 & length(sample_ids_nonfound_quantity$NormalizedByGene) > 1) {
-   testing <- wilcox.test(as.numeric(unlist(sample_ids_found_quantity2)), as.numeric(unlist(sample_ids_nonfound_quantity2)), alternative = "two.sided", paired = FALSE, exact = NULL, correct = TRUE)
-   p_value <- testing$p.value
-  } else {
-    p_value <- NA
-    
-  }
-  
-  results_eachPeptide <- data.frame(ENSG = ENSG_id, Peptide = eachPeptide, MeanCancer = sample_ids_found_quantity_mean, MeanNormal = sample_ids_nonfound_quantity_mean, p_value = p_value)
-
-  results <- rbind(results, results_eachPeptide)  
-
-} 
-  return(results)
-  
-  }
+library(hrbrthemes)
 ```
 
 
+```{r query}
+query <- GDCquery(
+    project = "TCGA-SKCM", 
+    data.category = "Simple Nucleotide Variation", 
+    access = "open",
+    data.type = "Masked Somatic Mutation", 
+    workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking"
+)
+GDCdownload(query)
+maf <- GDCprepare(query)
 
-```{r merge_dMDTs_ENSPs}
-ensg_enst_ensp_apris_v104 <-  read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Biomart/mart_export-2May2023.txt', sep='\t')
-head(ensg_enst_ensp_apris_v104)
+query_Ovary <- GDCquery(
+    project = "TCGA-OV", 
+    data.category = "Simple Nucleotide Variation", 
+    access = "open",
+    data.type = "Masked Somatic Mutation", 
+    workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking"
+)
+GDCdownload(query_Ovary)
+maf_Ovary <- GDCprepare(query_Ovary)
+
+
+query_AML <- GDCquery(
+    project = "TCGA-LAML", 
+    data.category = "Simple Nucleotide Variation", 
+    access = "open",
+    data.type = "Masked Somatic Mutation", 
+    workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking"
+)
+GDCdownload(query_AML)
+maf_AML <- GDCprepare(query_AML)
 ```
 
+
+```{r db}
+#maf <- GDCprepare(query)
+#datatable(maf[1:20,],
+#          filter = 'top',
+#          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+#          rownames = FALSE)
+#plotmafSummary(maf = maf_AML, rmOutlier = TRUE, addStat = 'median', dashboard = TRUE)
+#
+#datatable(maf_Ovary[1:20,],
+#          filter = 'top',
+#          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+#          rownames = FALSE)
+#
+#datatable(maf_AML[1:20,],
+#          filter = 'top',
+#          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+#          rownames = FALSE)
+#
+#maf <- read.maf(maf = maf)
+#datatable(getSampleSummary(maf),
+#          filter = 'top',
+#          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+#          rownames = FALSE)
+#plotmafSummary(maf = maf, rmOutlier = TRUE, addStat = 'median', dashboard = TRUE)
+#
+### Ovary
+#maf_Ovary <- read.maf(maf = maf_Ovary)
+#
+#datatable(getSampleSummary(maf_Ovary),
+#          filter = 'top',
+#          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+#          rownames = FALSE)
+#plotmafSummary(maf = maf_Ovary, rmOutlier = TRUE, addStat = 'median', dashboard = TRUE)
+#
+### AML
+#maf_AML <- read.maf(maf = maf_AML)
+#datatable(getSampleSummary(maf_AML),
+#          filter = 'top',
+#          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+#          rownames = FALSE)
+#plotmafSummary(maf = maf_AML, rmOutlier = TRUE, addStat = 'median', dashboard = TRUE)
+```
+
+
+```{r maf_df_2}
+maf_barcode_ids <- maf %>% dplyr::select(Tumor_Sample_Barcode, Tumor_Sample_UUID) %>% dplyr::distinct()
+```
+
+
+```{r merge_files}
+maf <- read.maf(maf = maf)
+maf_df <- mafSummary(maf)$variant.classification.summary
+maf_barcode_ids_mutations <- merge(maf_barcode_ids, maf_df, by= 'Tumor_Sample_Barcode')
+```
+
+```{r read_switches}
+dMDT_Melanoma_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Pri_GTEx.RDS')
+
+dMDT_Melanoma_tcga_metastatis <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/Melanoma/Switches_TCGA_Met_GTEx.RDS')
+```
+
+```{r TCGA_id_convert}
+library(TCGAutils)
+#gender_info <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/Melanoma/TCGA/clinical.cases_selection.2022-10-07/clinical.tsv', sep = '\t', header=TRUE)
+#head(gender_info)
+
+sample_ids <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/Melanoma/TCGA/biospecimen.cases_selection.2022-10-07/aliquot.tsv', sep = '\t', header=TRUE)
+
+#sample_id_case_id <- merge(sample_ids, gender_info, by= 'case_id')
+
+# convert old TCGA ids to new ids
+history_updated2 <- data.frame(oldid = character(), newid = character())
+for (eachfile in c(unique(dMDT_Melanoma_tcga_primary$SampleID), unique(dMDT_Melanoma_tcga_metastatis$SampleID))) {
+  updated_list <- UUIDhistory(eachfile)
+  oldfile <- updated_list[1,1]
+  newfile <- updated_list[2,1]
+  history_updated <- data.frame(oldid = oldfile, newid = newfile)
+  history_updated2 <- rbind(history_updated2, history_updated)
+}
+
+tcga_case_id <- UUIDtoUUID(history_updated2[2:nrow(history_updated2),]$newid,to_type = "case_id")
+tcga_case_id_rest <- UUIDtoUUID(history_updated2[2:nrow(history_updated2),]$oldid,to_type = "case_id") ## some ids are still in use in TCGA - not all are updated!
+head(tcga_case_id)
+```
+
+```{r merge_sample_id}
+sample_ids_new <- rbind(sample_ids[sample_ids$case_id %in% tcga_case_id$cases.case_id,], sample_ids[sample_ids$case_id %in% tcga_case_id$file_id,], sample_ids[sample_ids$case_id %in% tcga_case_id_rest$cases.case_id,], sample_ids[sample_ids$case_id %in% tcga_case_id_rest$file_id,])
+
+sample_ids_new_oldIds <- merge(sample_ids_new, tcga_case_id, by.x= "case_id", by.y="cases.case_id")
+sample_ids_new_oldIds_2 <- merge(sample_ids_new, tcga_case_id_rest, by.x= "case_id", by.y="cases.case_id")
+
+sample_ids_new_case_ids <- rbind(sample_ids_new_oldIds, sample_ids_new_oldIds_2)
+```
+
+# length(unique(sample_ids_new$case_id)) 458
+
+## merge mutation file and sample IDs
+
+```{r merge_mut_sample}
+maf_barcode_ids_mutations_sampleIDs <- merge(maf_barcode_ids_mutations, sample_ids_new_case_ids, by.x = "Tumor_Sample_UUID", by.y="aliquot_id")
+```
+
+
+```{r merge_dMDT_file_mut}
+old_new_id_match <- merge(history_updated2, tcga_case_id, by.x = 'newid', by.y='file_id')
+old_new_id_match2 <- merge(history_updated2, tcga_case_id_rest, by.x = 'oldid', by.y='file_id')
+old_new_id_matches <- rbind(old_new_id_match, old_new_id_match2)
+```
+
+
+```{r merge2}
+maf_barcode_ids_mutations_sampleIDs_part1 <- maf_barcode_ids_mutations_sampleIDs[maf_barcode_ids_mutations_sampleIDs$file_id %in% old_new_id_matches$oldid,]
+maf_barcode_ids_mutations_sampleIDs_part2 <-  maf_barcode_ids_mutations_sampleIDs[maf_barcode_ids_mutations_sampleIDs$file_id %in% old_new_id_matches$newid,]
+maf_barcode_ids_mutations_sampleIDs_total <- rbind(maf_barcode_ids_mutations_sampleIDs_part1, maf_barcode_ids_mutations_sampleIDs_part2)
+```
+
+
+```{r merge_dMDT_occurance}
+dMDT_Melanoma_tcga <- rbind(dMDT_Melanoma_tcga_metastatis, dMDT_Melanoma_tcga_primary)
+dMDT_Melanoma_tcga_fileid <- merge(dMDT_Melanoma_tcga, old_new_id_matches, by.x='SampleID', by.y='oldid')
+dMDT_Melanoma_tcga_fileid2 <- merge(dMDT_Melanoma_tcga, old_new_id_matches, by.x='SampleID', by.y='newid')
+colnames(dMDT_Melanoma_tcga_fileid2) <- colnames(dMDT_Melanoma_tcga_fileid)
+dMDT_Melanoma_tcga_fileid_finale <- rbind(dMDT_Melanoma_tcga_fileid2, dMDT_Melanoma_tcga_fileid)
+
+dMDT_Melanoma_tcga_fileids_mutations <- merge(dMDT_Melanoma_tcga_fileid_finale, maf_barcode_ids_mutations_sampleIDs_total, by.x='newid', by.y='file_id')
+```
+
+
+```{r dMDT_occurance}
+dMDT_Melanoma_tcga_correlations <- dMDT_Melanoma_tcga_fileids_mutations %>% dplyr::select(SampleID, case_id, ENSG, dMDT, MDT_GTEx, Frame_Shift_Del, Frame_Shift_Ins, In_Frame_Del, In_Frame_Ins, Missense_Mutation, Nonsense_Mutation, Nonstop_Mutation, Splice_Site, Silent, Translation_Start_Site, Intron, Splice_Region, total) %>% dplyr::distinct()
+
+Mel_dMDT_Occurance_mut <- dMDT_Melanoma_tcga_correlations %>% dplyr::group_by(SampleID, case_id) %>% dplyr::count(dMDT) %>% dplyr::select(SampleID,case_id,n) %>% summarize(total_dMDT = sum(n)) %>% arrange(desc(total_dMDT))
+head(Mel_dMDT_Occurance_mut)
+
+dMDT_Melanoma_tcga_correlations_CORR <- merge(dMDT_Melanoma_tcga_correlations, Mel_dMDT_Occurance_mut, by="SampleID")
+```
+
+
+```{r barplot_correlations}
+dMDT_Melanoma_tcga_correlations_CORR2 <- dMDT_Melanoma_tcga_correlations_CORR %>% dplyr::select(SampleID, case_id.x, Frame_Shift_Del, Frame_Shift_Ins, In_Frame_Del, In_Frame_Ins, Missense_Mutation, Nonsense_Mutation, Nonstop_Mutation, Splice_Site, Silent, Translation_Start_Site, Intron, Splice_Region, total, total_dMDT) %>% dplyr::distinct()
+
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Frame_Shift_Del, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Frame_Shift_Ins, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$In_Frame_Del, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Missense_Mutation, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Nonsense_Mutation, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Splice_Site, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Silent, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Translation_Start_Site, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$Splice_Region, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+plot(dMDT_Melanoma_tcga_correlations_CORR2$total, dMDT_Melanoma_tcga_correlations_CORR2$total_dMDT)
+```
+
+
+## splice protein mutation?
+```{r select_Spliceosome}
+maf <- GDCprepare(query)
+maf_genes <- maf %>% dplyr::select(Hugo_Symbol, Variant_Classification, Tumor_Sample_UUID, case_id, Gene, Consequence) %>% dplyr::distinct()
+
+Spliceosome_file <- read.csv('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Spliceosome/idmapping_2023_07_02.tsv', header = TRUE, sep = '\t')
+head(Spliceosome_file)
+
+Spliceosome_file$To <- gsub("\\..*", "", Spliceosome_file$To)
+ensembl_ids_spliceosome_complex <- unique(Spliceosome_file$To)
+maf_spliceosome_genes <- maf_genes[maf_genes$Gene %in% ensembl_ids_spliceosome_complex, ] # ensembl_ids_spliceosome_complex comes from SplicingMachinery Rmd file 
+```
+
+
+```{r merge_samples_spliceosome}
+maf_spliceosome_genes_missense_occur <- maf_spliceosome_genes %>% dplyr::filter(Variant_Classification %in% c('Missense_Mutation', "Splice_Site", "3'UTR", "In_Frame_Del", "Frame_Shift_Del", "Splice_Region","5'UTR", "splice_acceptor_variant","Translation_Start_Site", "Nonsense_Mutation","Intron", "Silent")) %>% group_by(Tumor_Sample_UUID)  %>% dplyr::count(Gene) %>% dplyr::select(Tumor_Sample_UUID, n) %>% dplyr::reframe(total_mut = sum(n))
+
+spliceosome_maf_samples <- merge(dMDT_Melanoma_tcga_fileids_mutations, maf_spliceosome_genes_missense_occur, by='Tumor_Sample_UUID')
+
+spliceosome_maf_samples2 <- merge(dMDT_Melanoma_tcga_fileids_mutations, maf_spliceosome_genes, by='Tumor_Sample_UUID')
+head(spliceosome_maf_samples2)
+```
+
+
+```{r spliceosomeMutSpliced}
+Samples_w_Splicesome_Switch <- unique(dMDT_Melanoma_tcga_correlations[dMDT_Melanoma_tcga_correlations$ENSG %in% ensembl_ids_spliceosome_complex, 'SampleID']) # 86 samples have switch in their spliceosome genes
+
+Samples_w_Spliceosome_Mut <- unique(dMDT_Melanoma_tcga_fileids_mutations[dMDT_Melanoma_tcga_fileids_mutations$Tumor_Sample_UUID %in% maf_spliceosome_genes$Tumor_Sample_UUID, 'SampleID']) # 314 samples have mutation in their spliceosome genes
+
+Samples_w_Spliceosome_Switch_Mut <- intersect(Samples_w_Splicesome_Switch, Samples_w_Spliceosome_Mut)
+# 62 unique samples have spliceosome switch and mutation in their spliceosome genes. 
+
+Samples_only_Mut <- setdiff(Samples_w_Spliceosome_Mut, Samples_w_Splicesome_Switch) # 252 samples 
+Samples_only_Switch <- setdiff(Samples_w_Splicesome_Switch, Samples_w_Spliceosome_Mut)
+```
+
+```{r boxplots}
+dMDT_count_Spliceosome_Mut_Switch <- Mel_dMDT_Occurance_mut[Mel_dMDT_Occurance_mut$SampleID %in% Samples_w_Spliceosome_Switch_Mut, ]
+
+dMDT_count_Spliceosome_Mut_Switch$Cohort <- 'Mut_Switch'
+
+dMDT_count_Spliceosome_Only_Mut <- Mel_dMDT_Occurance_mut[Mel_dMDT_Occurance_mut$SampleID %in% Samples_only_Mut, ]
+dMDT_count_Spliceosome_Only_Mut$Cohort <- 'Only_Mut'
+
+dMDT_count_Spliceosome_Only_Switch <- Mel_dMDT_Occurance_mut[Mel_dMDT_Occurance_mut$SampleID %in% Samples_only_Switch, ]
+dMDT_count_Spliceosome_Only_Switch$Cohort <- 'Only_Switch'
+
+all_samples_switch_mut <- c(dMDT_count_Spliceosome_Only_Switch, dMDT_count_Spliceosome_Only_Mut, dMDT_count_Spliceosome_Mut_Switch)
+
+dMDT_count_rest_of_the_samples <- Mel_dMDT_Occurance_mut[!Mel_dMDT_Occurance_mut$SampleID %in% all_samples_switch_mut, ]
+dMDT_count_rest_of_the_samples$Cohort <- 'Others'
+
+dMDT_count_Cohort <- rbind(dMDT_count_Spliceosome_Mut_Switch, dMDT_count_Spliceosome_Only_Mut, dMDT_count_Spliceosome_Only_Switch, dMDT_count_rest_of_the_samples)
+
+ggplot(dMDT_count_Cohort, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot() + theme_classic()
+```
+
+
+wilcox.test(dMDT_count_Cohort[dMDT_count_Cohort$Cohort == 'Only_Switch', 'total_dMDT']$total_dMDT, dMDT_count_Cohort[dMDT_count_Cohort$Cohort == 'Only_Mut', 'total_dMDT']$total_dMDT)
+
+wilcox.test(dMDT_count_Cohort[dMDT_count_Cohort$Cohort == 'Only_Switch', 'total_dMDT']$total_dMDT, dMDT_count_Cohort[dMDT_count_Cohort$Cohort == 'NonMutated', 'total_dMDT']$total_dMDT)
+
+
+Two samples with PRPF8 missense mutations and have switched isoforms!
+
+
+311 cases with dMDTs and having mutations
+we do not see switch in the mostly mutated genes in melanoma
+dMDT_mutated_all[dMDT_mutated_all$Hugo_Symbol %in%  c('TTN', 'MUC16', 'DNAH5', 'PCLO', 'LPR1B', 'ANK3', 'ADGRV1', 'DNAH7', 'CSMD1', 'BRAF'), ]
 
 ## Ovarian Samples
-```{r read_output_diann_Ovary}
-Main_output_Ovary <- read_delim('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/Proteomics/Ovary/DIANN/Main_Report.tsv', delim = '\t', col_names = TRUE)
+```{r maf_df_ovary}
+maf_barcode_ids_Ovary <- maf_Ovary %>% dplyr::select(Tumor_Sample_Barcode, Tumor_Sample_UUID) %>% dplyr::distinct()
+```
 
-Main_output_Ovary <- Main_output_Ovary %>% filter(!str_detect(Genes, ";"))
-
-Main_output_filtered_Ovary <- Main_output_Ovary[Main_output_Ovary$Q.Value <= 0.01 & Main_output_Ovary$PG.Q.Value <= 0.01, ]
-
-head(Main_output_filtered_Ovary)
-dim(Main_output_filtered_Ovary)
+```{r merge_files}
+maf_Ovary <- read.maf(maf = maf_Ovary)
+maf_df_ovary <- mafSummary(maf_Ovary)$variant.classification.summary
+maf_barcode_ids_mutations_ovary <- merge(maf_barcode_ids_Ovary, maf_df_ovary, by= 'Tumor_Sample_Barcode')
 ```
 
 
-```{r read_MDTs}
-Switches_Ovary_M <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Met_GTEx.RDS')
-Switches_Ovary_P <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/Switches_TuPro_Pri_GTEx.RDS')
-Switches_Ovary <- rbind(Switches_Ovary_P, Switches_Ovary_M)
+```{r read_switches}
+dMDT_Ovary_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/OvarianCancer/TCGA_GTEx_ov_Switch.RDS')
+
 ```
 
+```{r TCGA_id_convert}
+library(TCGAutils)
 
-```{r merge_ensts}
-Switches_Ovary_ensps <- merge(ensg_enst_ensp_apris_v104, Switches_Ovary, by.x= 'Transcript.stable.ID', by.y = 'dMDT', sort=FALSE)
-head(Switches_Ovary_ensps)
-```
-
-
-```{r mdt_enst_merging}
-Switches_Ovary_MDTS_splitted <- Switches_Ovary %>%
-  mutate(MDT_GTEx = strsplit(as.character(MDT_GTEx), ",")) %>%
-  unnest(MDT_GTEx)
-
-Switches_Ovary_ensps_mdts <- merge(ensg_enst_ensp_apris_v104, Switches_Ovary_MDTS_splitted, by.x= 'Transcript.stable.ID', by.y = 'MDT_GTEx', sort=FALSE)
-head(Switches_Ovary_ensps_mdts)
-```
+sample_ids_ovary <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/Ovary/TCGA_SampleInfo/biospecimen.cases_selection.2022-11-17/aliquot.tsv', sep = '\t', header=TRUE)
 
 
-```{r check_dMDT_GTEx}
-# filter main output
-Main_output_filtered_dMDT <- Main_output_filtered_Ovary[Main_output_filtered_Ovary$Protein.Ids %in% Switches_Ovary_ensps$Protein.stable.ID, ]
-
-head(Main_output_filtered_dMDT)
-dim(Main_output_filtered_dMDT)
-#[1] 7561   58
-
-unique_peptides <- Main_output_filtered_dMDT[,c('Protein.Ids','Stripped.Sequence')] %>% dplyr::distinct()
-```
-
-
-```{r upper_code_vectorizaition}
-library(data.table)
-dMDT_vector <- unique(Switches_Ovary_ensps$Protein.stable.ID)
-MDT_vector <- unique(Switches_Ovary_ensps_mdts$Protein.stable.ID)
-
-dMDT_proteomics <- Main_output_filtered_Ovary[FALSE, ]
-MDT_proteomics <- Main_output_filtered_Ovary[FALSE, ]
-
-# Convert data frames to data.table
-Main_output_filtered_dt <- as.data.table(Main_output_filtered_Ovary)
-dMDT_proteomics_dt <- as.data.table(dMDT_proteomics)
-MDT_proteomics_dt <- as.data.table(MDT_proteomics)
-
-# Create logical vectors indicating matching IDs
-dMDT_match <- sapply(Main_output_filtered_dt$Protein.Ids, function(ids) any(str_split_1(ids, ';') %in% dMDT_vector)) # Protein IDs that include dMDT
-MDT_match <- sapply(Main_output_filtered_dt$Protein.Ids, function(ids) any(str_split_1(ids, ';') %in% MDT_vector)) # Protein IDs that include MDT
-
-# Filter rows based on the logical vectors
-dMDT_proteomics_dt <- Main_output_filtered_dt[dMDT_match]
-MDT_proteomics_dt <- Main_output_filtered_dt[MDT_match]
-```
-
-
-```{r check_dMDTs_in_general}
-library(dplyr)
-
-# check rows dMDT is found together with other ENSP ids but excluding the MDTs 
-library(purrr)
-include_ids <- unique(Switches_Ovary_ensps$Protein.stable.ID)
-exclude_ids <- unique(Switches_Ovary_ensps_mdts$Protein.stable.ID)
-
-# Peptides that belong to dMDT and others but not to MDT ids
-Main_output_filtered_dMDT_exc_MDT <- Main_output_filtered_Ovary %>%
-  dplyr::filter(
-    str_detect(Protein.Ids, paste(include_ids, collapse = '|')) &
-    !str_detect(Protein.Ids, paste(exclude_ids, collapse = '|'))
-  )
-
-dim(Main_output_filtered_dMDT_exc_MDT)
-#[1] 38103    58
-length(unique(Main_output_filtered_dMDT_exc_MDT$Protein.Ids))
-#[1] 361 # unique dMDT number found in proteomics data is 121 but with other transcripts exlucidng the MDT is 361 
-```
-
-
-```{r CheckPeptideNumberPerGene}
-
-# Calculate number of peptides per gene
-Main_output_filtered_peptides_Ovary <- Main_output_filtered_Ovary %>% dplyr::select(Run, Stripped.Sequence, Genes) %>% dplyr::filter(Genes %in% Switches_Ovary$ENSG) %>% dplyr::distinct() %>% dplyr::group_by(Stripped.Sequence, Genes) %>% dplyr::summarise(count = n()) %>% dplyr::arrange(desc(count)) 
-
-DT_Ovary <- as.data.table(Main_output_filtered_Ovary)
-DT_Ovary[, Sampleid := sapply(DT_Ovary$File.Name, function(x) strsplit(strsplit(x, "/")[[1]][11], '-')[[1]][1])]
-
-all_samples_ovary <- unique(Switches_Ovary$SampleID)
-all_samples_isolate_ovary <- sapply(strsplit(all_samples_ovary, "/"), "[", 2)
-```
-
-
-```{r NormalizeAllPeptideExpbyGene}
-DT_Ovary_SumStrippedSequence <- DT_Ovary %>% dplyr::select(Sampleid, Protein.Ids, Genes, Precursor.Normalised, Stripped.Sequence) %>% dplyr::group_by(Sampleid, Protein.Ids, Genes, Stripped.Sequence) %>% dplyr::mutate(AvgNormalised = mean(Precursor.Normalised)) %>% dplyr::ungroup() %>% dplyr::select(Sampleid, Protein.Ids, Genes, Stripped.Sequence, AvgNormalised) %>% dplyr::distinct()
-
-DT_Normalized_Ovary <- DT_Ovary_SumStrippedSequence %>% dplyr::select(Protein.Ids, Genes, AvgNormalised, Stripped.Sequence, Sampleid) %>% dplyr::distinct() %>% dplyr::group_by(Sampleid, Genes) %>% dplyr::mutate(NormalizedByGene = AvgNormalised/sum(AvgNormalised))
-```
-
-
-```{r Ovary_ClassIII}
-ClassIII_Ovary2 <- ClassIII_calc_Norm2(Main_output_filtered_peptides_Ovary, DT_Normalized_Ovary, Switches_Ovary, all_samples_isolate_ovary)
-```
-
-```{r pval}
-ClassIII_Ovary_fdr <- ClassIII_Ovary2 %>% dplyr::group_by(ENSG) %>% dplyr::mutate(FDR_new = p.adjust(p_value, method = "BH"))
-```
-
-```{r mergefiles}
-ClassIII_Ovary_fdr_only_proteinIds <- (merge(ClassIII_Ovary_fdr, Main_output_filtered_Ovary[, c('Protein.Ids', 'Genes', 'Stripped.Sequence')], by.x = 'Peptide', by.y = 'Stripped.Sequence') %>% dplyr::distinct())
-head(ClassIII_Ovary_fdr_only_proteinIds)
-```
-
-
-```{r CategoriseENSPs}
-
-for (eachrow in 1:nrow(ClassIII_Ovary_fdr_only_proteinIds)) { 
-  protein_ids <- ClassIII_Ovary_fdr_only_proteinIds[eachrow, 'Protein.Ids']
-  protein_ids_vector <- unlist(str_split(protein_ids, ';'))
-  
-  # Check if any protein ID is in exclude_ids or include_ids
-  in_MDT <- any(protein_ids_vector %in% exclude_ids)
-  in_cMDT <- any(protein_ids_vector %in% include_ids)
-  
-  if (in_MDT & !in_cMDT) {
-    ClassIII_Ovary_fdr_only_proteinIds$description[eachrow] <- "MDT, not cMDT"
-  } else if (!in_MDT & in_cMDT) {
-    ClassIII_Ovary_fdr_only_proteinIds$description[eachrow] <- "cMDT, not MDT" # This should not be found considering that they are Class II peptides - as a control!
-  } else if (in_MDT & in_cMDT) {
-    ClassIII_Ovary_fdr_only_proteinIds$description[eachrow] <- "MDT and cMDT"
-  } else {
-    ClassIII_Ovary_fdr_only_proteinIds$description[eachrow] <- "Other isoforms"
-  }
+# convert old TCGA ids to new ids
+history_updated2 <- data.frame(oldid = character(), newid = character())
+for (eachfile in c(unique(dMDT_Ovary_tcga_primary$SampleID))) {
+  updated_list <- UUIDhistory(eachfile)
+  oldfile <- updated_list[1,1]
+  newfile <- updated_list[2,1]
+  history_updated <- data.frame(oldid = oldfile, newid = newfile)
+  history_updated2 <- rbind(history_updated2, history_updated)
 }
+
+#tcga_case_id_ovary <- UUIDtoUUID(history_updated2[2:nrow(history_updated2),]$newid,to_type = "case_id")
+tcga_case_id_rest_ovary <- UUIDtoUUID(history_updated2[2:nrow(history_updated2),]$oldid,to_type = "case_id") ## Ovarian ids are still in use in TCGA 
+#head(tcga_case_id_ovary)
+head(tcga_case_id_rest_ovary)
 ```
 
 
-```{r saveData}
-saveRDS(ClassIII_Ovary_fdr_only_proteinIds, '/Users/admin/Desktop/TuPro_Paper/BJC/Revision/ClassIII_Ovary_fdr_only_proteinIds_StrippedSequence_NormalizedByPeptideNumberAndRelativeExp.RDS')
-```
+```{r merge_sample_id}
+sample_ids_new <- rbind(sample_ids_ovary[sample_ids_ovary$case_id %in% tcga_case_id_rest_ovary$cases.case_id,], sample_ids_ovary[sample_ids_ovary$case_id %in% tcga_case_id_rest_ovary$file_id,])
 
-ClassIII_Ovary_fdr_only_proteinIds %>% dplyr::filter(Protein.Ids %in% Switches_Ovary_ensps$Protein.stable.ID) %>% dplyr::select(Protein.Ids) %>% dplyr::distinct() # 121 Class I peptides
-
-ClassIII_Ovary_fdr_only_proteinIds[ClassIII_Ovary_fdr_only_proteinIds$description == 'cMDT, not MDT', ] %>% separate_rows(Protein.Ids, sep = ";") %>% dplyr::filter(Protein.Ids %in% Switches_Ovary_ensps$Protein.stable.ID) %>% dplyr::select(Protein.Ids) %>% dplyr::distinct()
-
-## Ovarian Samples - Class I and Class II peptides list
-```{r ClassIandII}
-# Main_output_filtered_dMDT_exc_MDT # it is from Manuscript4.Rmd file
-# ENSGs with only 1 cMDTs and the ones that are found in Class I or Class II peptides list. We should remove these ENSGs from the list
-ENSG_list_to_remove <- Switches_Ovary %>% dplyr::select(ENSG, dMDT) %>% dplyr::distinct() %>% dplyr::group_by(ENSG) %>% dplyr::summarise(count = n()) %>% dplyr::arrange(desc(count)) %>% dplyr::filter(count == 1) %>% dplyr::filter(ENSG %in% Main_output_filtered_dMDT_exc_MDT$Genes)
-
-ClassIII_Ovary_fdr_only_ClassIII <- ClassIII_Ovary_fdr_only_proteinIds %>% dplyr::filter(!Peptide %in% Main_output_filtered_dMDT_exc_MDT$Stripped.Sequence) %>% dplyr::filter(!ENSG %in% ENSG_list_to_remove$ENSG)# Peptides that are not found in Class I and Class II! 
-
-head(ClassIII_Ovary_fdr_only_ClassIII)
+sample_ids_new_case_ids_ovary <- merge(sample_ids_new, tcga_case_id_rest_ovary, by.x= "case_id", by.y="cases.case_id")
 ```
 
 
-```{r saveData}
-saveRDS(ClassIII_Ovary_fdr_only_ClassIII, '/Users/admin/Desktop/TuPro_Paper/BJC/Revision/ClassIII_Ovary_Peptides.RDS')
-```
-dim(ClassIII_Ovary_fdr_only_ClassIII)
-[1] 18035     9
-
-
-## 4 category search
-```{r Categories1_3}
-# MDT specific peptide doesn’t change, cMDT specific changes
-# This category is looking at the isoforms that have both 'MDT, not cMDT' and 'cMDT and MDT' categories
-valid_ENSGs <- ClassIII_Ovary_fdr_only_ClassIII %>% dplyr::select(Peptide, ENSG, MeanCancer, MeanNormal, p_value, FDR_new, Protein.Ids, description) %>% dplyr::group_by(ENSG) %>% dplyr::summarise(has_both = all(c('MDT and cMDT', 'MDT, not cMDT') %in% description)) %>% dplyr::filter(has_both) %>% dplyr::pull(ENSG)
-
-Category1_3_Categories <-  ClassIII_Ovary_fdr_only_ClassIII %>%
-  filter(ENSG %in% valid_ENSGs) %>% dplyr::filter(description %in% c('MDT and cMDT', 'MDT, not cMDT'))
-```
-
-```{r Category1_4}
-# Define FDR significance threshold
-fdr_threshold <- 0.1
-
-# Identify ENSG values where 'MDT, not cMDT' has significant FDR and 'MDT and cMDT' has no change
-# category 2
-genes_with_significant_change <- Category1_3_Categories %>%
-  group_by(ENSG) %>%
-  summarise(
-    has_significant_not_cMDT = any(FDR_new[description == "MDT, not cMDT"] <= fdr_threshold, na.rm = TRUE),
-    has_no_significant_cMDT = all(FDR_new[description == "MDT and cMDT"] %>% na.omit() > fdr_threshold)
-  ) %>%
-  filter(has_significant_not_cMDT & has_no_significant_cMDT) %>%
-  pull(ENSG)
-
-# category 1
-genes_with_significant_change_ctg1 <- Category1_3_Categories %>%
-  group_by(ENSG) %>%
-  summarise(
-    has_significant_not_cMDT = any(FDR_new[description == "MDT, not cMDT"] > fdr_threshold, na.rm = TRUE),
-    has_no_significant_cMDT = all(FDR_new[description == "MDT and cMDT"] %>% na.omit() <= fdr_threshold)
-  ) %>%
-  filter(has_significant_not_cMDT & has_no_significant_cMDT) %>%
-  pull(ENSG)
-
-# category 3
-genes_with_significant_change_ctg3 <- Category1_3_Categories %>%
-  group_by(ENSG) %>%
-  summarise(
-    has_significant_not_cMDT = any(FDR_new[description == "MDT, not cMDT"] <= fdr_threshold, na.rm = TRUE),
-    has_no_significant_cMDT = all(FDR_new[description == "MDT and cMDT"] %>% na.omit() <= fdr_threshold)
-  ) %>%
-  filter(has_significant_not_cMDT & has_no_significant_cMDT) %>%
-  pull(ENSG)
-
-# Filter the dataframe to retain only these genes
-Category1 <- Category1_3_Categories %>%
-  filter(ENSG %in% genes_with_significant_change_ctg1)
-
-Category2 <- Category1_3_Categories %>%
-  filter(ENSG %in% genes_with_significant_change)
-
-Category3 <- Category1_3_Categories %>%
-  filter(ENSG %in% genes_with_significant_change_ctg3)
-```
-
-length(unique(Category2$ENSG)) 11
-length(unique(Category1$ENSG)) 44
-length(unique(Category3$ENSG)) 7 
-
-```{r category4}
-# where there is no shared cMDT and MDT peptides. - and only change in the MDT specific peptides.
-valid_ENSGs <- ClassIII_Ovary_fdr_only_ClassIII %>% dplyr::select(Peptide, ENSG, MeanCancer, MeanNormal, p_value, FDR_new, Protein.Ids, description) %>% dplyr::group_by(ENSG) %>% dplyr::summarise(has_both = all(c('MDT and cMDT', 'MDT, not cMDT') %in% description)) %>% dplyr::filter(has_both) %>% dplyr::pull(ENSG)
+```{r merge_mut_sample}
+maf_barcode_ids_mutations_sampleIDs_ovary <- merge(maf_barcode_ids_mutations_ovary, sample_ids_new_case_ids_ovary, by.x = "Tumor_Sample_UUID", by.y="aliquot_id")
 ```
 
 
-```{r Category4}
-# FDR < 0.1 or MeanNormal has a value but MeanCancer does not have a value
-valid_ENSGs_only_not_cMDT <- ClassIII_Ovary_fdr_only_ClassIII %>%
-  dplyr::select(Peptide, ENSG, MeanCancer, MeanNormal, p_value, FDR_new, Protein.Ids, description) %>%
-  dplyr::group_by(ENSG) %>%
-  dplyr::summarise(
-    has_not_cMDT = any(description == 'MDT, not cMDT'),
-    has_cMDT = any(description == 'MDT and cMDT'),
-    has_only_Normal = any(!is.na(MeanNormal) & is.na(MeanCancer))
-  ) %>%
-  dplyr::filter(has_not_cMDT & !has_cMDT) %>%
-  dplyr::pull(ENSG)
-
-Category4 <-  ClassIII_Ovary_fdr_only_ClassIII %>%
-  filter(ENSG %in% valid_ENSGs_only_not_cMDT) %>%
-  filter(
-    !(MeanNormal == "NA" | MeanNormal == "OneSample") & 
-    (is.na(MeanCancer) | MeanCancer != "OneSample") &
-    # Remove cases where MeanNormal is "NA"
-    !(MeanNormal == "OneSample" & MeanCancer == "NA")  &
-      (is.na(FDR_new) | FDR_new <= 0.1) # Remove cases where MeanNormal is "OneSample" and MeanCancer is "NA"
-  )
+```{r merge_dMDT_file_mut}
+#old_new_id_match <- merge(history_updated2, tcga_case_id, by.x = 'newid', by.y='file_id')
+old_new_id_matches <- merge(history_updated2, tcga_case_id_rest_ovary, by.x = 'oldid', by.y='file_id')
 ```
 
 
-```{r merge_categories}
-Category1$Category <- 'Category1'
-Category2$Category <- 'Category2'
-Category3$Category <- 'Category3'
-Category4$Category <- 'Category4'
-All4Categories <- rbind(Category1, Category2, Category3, Category4)
-write.table(All4Categories, '/Users/admin/Desktop/TuPro_Paper/BJC/Revision/ClassIII_FourCategory_Ovary.txt', quote = FALSE)
+```{r merge_OVARY}
+maf_barcode_ids_mutations_sampleIDs_total_ovary <-  maf_barcode_ids_mutations_sampleIDs_ovary[maf_barcode_ids_mutations_sampleIDs_ovary$file_id %in% old_new_id_matches$oldid,]
 ```
+
+```{r select_Spliceosome}
+maf_Ovary <- GDCprepare(query_Ovary)
+maf_genes_Ovary <- maf_Ovary %>% dplyr::select(Hugo_Symbol, Variant_Classification, Tumor_Sample_UUID, case_id, Gene, Consequence) %>% dplyr::distinct()
+
+maf_spliceosome_genes_Ovary <- maf_genes_Ovary[maf_genes_Ovary$Gene %in% ensembl_ids_spliceosome_complex, ] # ensembl_ids_spliceosome_complex comes from SplicingMachinery Rmd file 
+```
+
+```{r merge_dMDT_occurance}
+dMDT_Ovary_tcga_fileid <- merge(dMDT_Ovary_tcga_primary, old_new_id_matches, by.x='SampleID', by.y='oldid')
+dMDT_Ovary_tcga_fileids_mutations <- merge(dMDT_Ovary_tcga_fileid, maf_barcode_ids_mutations_sampleIDs_total_ovary, by.x='SampleID', by.y='file_id')
+```
+
+
+```{r dMDT_occuranceOvary}
+dMDT_Ovary_tcga_correlations <- dMDT_Ovary_tcga_fileids_mutations %>% dplyr::select(SampleID, case_id, ENSG, dMDT, MDT_GTEx, Frame_Shift_Del, Frame_Shift_Ins, In_Frame_Del, In_Frame_Ins, Missense_Mutation, Nonsense_Mutation, Nonstop_Mutation, Splice_Site, Silent, Translation_Start_Site, Intron, Splice_Region, total) %>% dplyr::distinct()
+
+Ov_dMDT_Occurance_mut <- dMDT_Ovary_tcga_correlations %>% dplyr::group_by(SampleID, case_id) %>% dplyr::count(dMDT) %>% dplyr::select(SampleID,case_id,n) %>% summarize(total_dMDT = sum(n)) %>% arrange(desc(total_dMDT))
+head(Ov_dMDT_Occurance_mut)
+
+#dMDT_Ov_tcga_correlations_CORR <- merge(dMDT_Ovary_tcga_correlations, Ov_dMDT_Occurance_mut, by="SampleID")
+```
+
+```{r spliceosomeMutSpliced}
+Samples_w_Splicesome_Switch_Ov <- unique(dMDT_Ovary_tcga_fileids_mutations[dMDT_Ovary_tcga_fileids_mutations$ENSG %in% ensembl_ids_spliceosome_complex, 'SampleID']) # 86 samples have switch in their spliceosome genes
+
+Samples_w_Spliceosome_Mut_Ov <- unique(dMDT_Ovary_tcga_fileids_mutations[dMDT_Ovary_tcga_fileids_mutations$Tumor_Sample_UUID %in% dMDT_Ovary_tcga_fileids_mutations$Tumor_Sample_UUID, 'SampleID']) # 314 samples have mutation in their spliceosome genes
+
+Samples_w_Spliceosome_Switch_Mut_Ov <- intersect(Samples_w_Splicesome_Switch_Ov, Samples_w_Spliceosome_Mut_Ov)
+# 62 unique samples have spliceosome switch and mutation in their spliceosome genes. 
+
+Samples_only_Mut <- setdiff(Samples_w_Spliceosome_Mut_Ov, Samples_w_Splicesome_Switch_Ov) # 252 samples 
+Samples_only_Switch <- setdiff(Samples_w_Splicesome_Switch_Ov, Samples_w_Spliceosome_Mut_Ov)
+```
+
+```{r boxplots}
+dMDT_count_Spliceosome_Mut_Switch_Ov <- Ov_dMDT_Occurance_mut[Ov_dMDT_Occurance_mut$SampleID %in% Samples_w_Spliceosome_Switch_Mut_Ov, ]
+
+dMDT_count_Spliceosome_Mut_Switch_Ov$Cohort <- 'Mut_Switch'
+
+dMDT_count_Spliceosome_Only_Mut_Ov <- Ov_dMDT_Occurance_mut[Ov_dMDT_Occurance_mut$SampleID %in% Samples_only_Mut, ]
+dMDT_count_Spliceosome_Only_Mut_Ov$Cohort <- 'Only_Mut'
+
+dMDT_count_Spliceosome_Only_Switch_Ov <- Ov_dMDT_Occurance_mut[Ov_dMDT_Occurance_mut$SampleID %in% Samples_only_Switch, ]
+dMDT_count_Spliceosome_Only_Switch_Ov$Cohort <- 'Only_Switch'
+
+all_samples_switch_mut_Ov <- c(dMDT_count_Spliceosome_Only_Switch_Ov, dMDT_count_Spliceosome_Only_Mut_Ov, dMDT_count_Spliceosome_Mut_Switch_Ov)
+
+dMDT_count_rest_of_the_samples_Ov <- Ov_dMDT_Occurance_mut[!Ov_dMDT_Occurance_mut$SampleID %in% all_samples_switch_mut, ]
+dMDT_count_rest_of_the_samples_Ov$Cohort <- 'Others'
+
+dMDT_count_Cohort_Ov <- rbind(dMDT_count_Spliceosome_Mut_Switch_Ov, dMDT_count_Spliceosome_Only_Mut_Ov, dMDT_count_Spliceosome_Only_Switch_Ov, dMDT_count_rest_of_the_samples_Ov)
+
+ggplot(dMDT_count_Cohort_Ov, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot() + theme_classic()
+```
+
+
+## AML Samples
+```{r maf_df_AML}
+maf_barcode_ids_AML <- maf_AML %>% dplyr::select(Tumor_Sample_Barcode, Tumor_Sample_UUID) %>% dplyr::distinct()
+```
+
+```{r merge_files}
+maf_AML <- read.maf(maf = maf_AML)
+maf_df_AML <- mafSummary(maf_AML)$variant.classification.summary
+maf_barcode_ids_mutations_AML <- merge(maf_barcode_ids_AML, maf_df_AML, by= 'Tumor_Sample_Barcode')
+```
+
+```{r read_switches}
+dMDT_AML_tcga_primary <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/cMDT/AML/Switches/Switches_TCGA_GTEx.RDS')
+
+```
+
+```{r TCGA_id_convert}
+library(TCGAutils)
+
+sample_ids_AML <- read.csv('/Users/tulaykarakulak/Documents/PhD/Projects/TumorProfiler/Analysis/AML/biospecimen.cases_selection.2023-04-18/aliquot.tsv', sep = '\t', header=TRUE)
+
+
+# convert old TCGA ids to new ids
+history_updated2 <- data.frame(oldid = character(), newid = character())
+for (eachfile in c(unique(dMDT_AML_tcga_primary$SampleID))) {
+  updated_list <- UUIDhistory(eachfile)
+  oldfile <- updated_list[1,1]
+  newfile <- updated_list[2,1]
+  history_updated <- data.frame(oldid = oldfile, newid = newfile)
+  history_updated2 <- rbind(history_updated2, history_updated)
+}
+
+#tcga_case_id_AML <- UUIDtoUUID(history_updated2[2:nrow(history_updated2),]$newid,to_type = "case_id")
+tcga_case_id_rest_AML <- UUIDtoUUID(history_updated2[2:nrow(history_updated2),]$oldid,to_type = "case_id") ## AML ids are still in use in TCGA 
+#head(tcga_case_id_AML)
+head(tcga_case_id_rest_AML)
+```
+
+
+```{r merge_sample_id}
+sample_ids_new <- rbind(sample_ids_AML[sample_ids_AML$case_id %in% tcga_case_id_rest_AML$cases.case_id,], sample_ids_AML[sample_ids_AML$case_id %in% tcga_case_id_rest_AML$file_id,])
+
+sample_ids_new_case_ids_AML <- merge(sample_ids_new, tcga_case_id_rest_AML, by.x= "case_id", by.y="cases.case_id")
+```
+
+
+```{r merge_mut_sample}
+maf_barcode_ids_mutations_sampleIDs_AML <- merge(maf_barcode_ids_mutations_AML, sample_ids_new_case_ids_AML, by.x = "Tumor_Sample_UUID", by.y="aliquot_id")
+```
+
+
+```{r merge_dMDT_file_mut}
+#old_new_id_match <- merge(history_updated2, tcga_case_id, by.x = 'newid', by.y='file_id')
+old_new_id_matches <- merge(history_updated2, tcga_case_id_rest_AML, by.x = 'oldid', by.y='file_id')
+```
+
+
+```{r merge_AML}
+maf_barcode_ids_mutations_sampleIDs_total_AML <-  maf_barcode_ids_mutations_sampleIDs_AML[maf_barcode_ids_mutations_sampleIDs_AML$file_id %in% old_new_id_matches$oldid,]
+```
+
+```{r select_Spliceosome}
+maf_AML <- GDCprepare(query_AML)
+maf_genes_AML <- maf_AML %>% dplyr::select(Hugo_Symbol, Variant_Classification, Tumor_Sample_UUID, case_id, Gene, Consequence) %>% dplyr::distinct()
+
+maf_spliceosome_genes_AML <- maf_genes_AML[maf_genes_AML$Gene %in% ensembl_ids_spliceosome_complex, ] # ensembl_ids_spliceosome_complex comes from SplicingMachinery Rmd file 
+```
+
+```{r merge_dMDT_occurance}
+dMDT_AML_tcga_fileid <- merge(dMDT_AML_tcga_primary, old_new_id_matches, by.x='SampleID', by.y='oldid')
+dMDT_AML_tcga_fileids_mutations <- merge(dMDT_AML_tcga_fileid, maf_barcode_ids_mutations_sampleIDs_total_AML, by.x='SampleID', by.y='file_id')
+```
+
+
+```{r dMDT_occuranceAML}
+dMDT_AML_tcga_correlations <- dMDT_AML_tcga_fileids_mutations %>% dplyr::select(SampleID, case_id, ENSG, dMDT, MDT_GTEx, Frame_Shift_Del, Frame_Shift_Ins, In_Frame_Del, In_Frame_Ins, Missense_Mutation, Nonsense_Mutation, Nonstop_Mutation, Splice_Site, Silent, Translation_Start_Site, Intron, Splice_Region, total) %>% dplyr::distinct()
+
+AML_dMDT_Occurance_mut <- dMDT_AML_tcga_correlations %>% dplyr::group_by(SampleID, case_id) %>% dplyr::count(dMDT) %>% dplyr::select(SampleID,case_id,n) %>% summarize(total_dMDT = sum(n)) %>% arrange(desc(total_dMDT))
+head(AML_dMDT_Occurance_mut)
+#dMDT_AML_tcga_correlations_CORR <- merge(dMDT_AML_tcga_correlations, AML_dMDT_Occurance_mut, by="SampleID")
+```
+
+```{r spliceosomeMutSpliced}
+Samples_w_Splicesome_Switch_AML <- unique(dMDT_AML_tcga_fileids_mutations[dMDT_AML_tcga_fileids_mutations$ENSG %in% ensembl_ids_spliceosome_complex, 'SampleID']) # 86 samples have switch in their spliceosome genes
+
+Samples_w_Spliceosome_Mut_AML <- unique(dMDT_AML_tcga_fileids_mutations[dMDT_AML_tcga_fileids_mutations$Tumor_Sample_UUID %in% dMDT_AML_tcga_fileids_mutations$Tumor_Sample_UUID, 'SampleID']) # 314 samples have mutation in their spliceosome genes
+
+Samples_w_Spliceosome_Switch_Mut_AML <- intersect(Samples_w_Splicesome_Switch_AML, Samples_w_Spliceosome_Mut_AML)
+# 62 unique samples have spliceosome switch and mutation in their spliceosome genes. 
+
+Samples_only_Mut <- setdiff(Samples_w_Spliceosome_Mut_AML, Samples_w_Splicesome_Switch_AML) # 252 samples 
+Samples_only_Switch <- setdiff(Samples_w_Splicesome_Switch_AML, Samples_w_Spliceosome_Mut_AML)
+```
+
+```{r boxplots}
+dMDT_count_Spliceosome_Mut_Switch_AML <- AML_dMDT_Occurance_mut[AML_dMDT_Occurance_mut$SampleID %in% Samples_w_Spliceosome_Switch_Mut_AML, ]
+
+dMDT_count_Spliceosome_Mut_Switch_AML$Cohort <- 'Mut_Switch'
+
+dMDT_count_Spliceosome_Only_Mut_AML <- AML_dMDT_Occurance_mut[AML_dMDT_Occurance_mut$SampleID %in% Samples_only_Mut, ]
+dMDT_count_Spliceosome_Only_Mut_AML$Cohort <- 'Only_Mut'
+
+dMDT_count_Spliceosome_Only_Switch_AML <- AML_dMDT_Occurance_mut[AML_dMDT_Occurance_mut$SampleID %in% Samples_only_Switch, ]
+dMDT_count_Spliceosome_Only_Switch_AML$Cohort <- 'Only_Switch'
+
+all_samples_switch_mut_AML <- c(dMDT_count_Spliceosome_Only_Switch_AML, dMDT_count_Spliceosome_Only_Mut_AML, dMDT_count_Spliceosome_Mut_Switch_AML)
+
+dMDT_count_rest_of_the_samples_AML <- AML_dMDT_Occurance_mut[!AML_dMDT_Occurance_mut$SampleID %in% all_samples_switch_mut, ]
+dMDT_count_rest_of_the_samples_AML$Cohort <- 'Others'
+
+dMDT_count_Cohort_AML <- rbind(dMDT_count_Spliceosome_Mut_Switch_AML, dMDT_count_Spliceosome_Only_Mut_AML, dMDT_count_Spliceosome_Only_Switch_AML, dMDT_count_rest_of_the_samples_AML)
+
+ggplot(dMDT_count_Cohort_AML, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot() + theme_classic()
+```
+
+```{r testSignificance}
+compare_means(total_dMDT ~ Cohort,  data = dMDT_count_Cohort)
+compare_means(total_dMDT ~ Cohort,  data = dMDT_count_Cohort_Ov)
+compare_means(total_dMDT ~ Cohort,  data = dMDT_count_Cohort_AML)
+```
+
+```{r addSignificance}
+comparison_Mel <- list(c("Mut_Switch", "Only_Mut"), c("Mut_Switch", "Only_Switch"), c("Mut_Switch", "Others"), c("Only_Mut", "Only_Switch"), c("Only_Mut", "Others"), c("Only_Switch", "Others"))
+
+comparison_Ov <- list(c("Mut_Switch", "Only_Mut"), c("Mut_Switch", "Others"), c("Only_Mut", "Others"))
+
+comparison_AML <- list(c("Mut_Switch", "Only_Mut"), c("Mut_Switch", "Others"), c("Only_Mut", "Others"))
+```
+
+```{r savegraphs}
+library(ggpubr)
+Spliceosome_Mut_Switch_Mel <- ggplot(dMDT_count_Cohort, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot(notch = FALSE) + theme_classic() + scale_fill_brewer(palette="Blues") + stat_compare_means(comparisons = comparison_Mel)
+
+Spliceosome_Mut_Switch_AML <- ggplot(dMDT_count_Cohort_AML, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot(notch = FALSE) + theme_classic() + scale_fill_brewer(palette="OrRd") + stat_compare_means(comparisons = comparison_AML)
+
+Spliceosome_Mut_Switch_Ov <- ggplot(dMDT_count_Cohort_Ov, aes(x=Cohort, y=total_dMDT, fill=Cohort)) + geom_boxplot(notch = FALSE) + theme_classic() + scale_fill_brewer(palette="RdPu") + stat_compare_means(comparisons = comparison_Ov)
+```
+
+
 
 
