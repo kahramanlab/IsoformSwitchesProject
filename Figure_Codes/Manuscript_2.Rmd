@@ -31,7 +31,7 @@ set.seed(12345)
 Mel_TuPro_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tuPro_tpm_NR.RDS')
 Mel_GTEx_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/gtex_tpm_NR.RDS')
 Mel_TCGA_met_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tcga_metastatic_tpm_NR.RDS')
-Mel_TCGA_pri_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tcga_metastatic_tpm_NR.RDS')
+Mel_TCGA_pri_exp <- readRDS('/Users/admin/Desktop/TuPro_Paper/Codes/Codes_Figures/Data/NonRedundantTPMs/Skin_Melanoma/tcga_primary_tpm_NR.RDS')
 
 
 # Ov
@@ -144,10 +144,7 @@ plotENSTExp2 <- function(dMDT, MDT, GTEX_exp, TCGA_exp, TuPro_exp, dMDT_TCGA, dM
 ```
 
 ```{r checkExpression}
-# PDCD6 in Ovary
-
-#PDCD6 <- plotENSTExp('ENST00000356080', 'ENST00000277900', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp)
-#ggplot(PDCD6, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
+# ADD3 in OvaryÅ
 
 ADD3_dMDTspec <- plotENSTExp2('ENST00000356080', 'ENST00000277900', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp, dMDTs_Ovary_tcga, dMDT_Ovary_tuPro_metastatis)
 
@@ -159,9 +156,6 @@ ggplot(ADD3_dMDTspec, aes(x=data, y=Exp, fill=Cohort)) + geom_boxplot() + theme_
 
 ```{r checkExpression}
 # PDCD6 in Melanoma
-
-#PDCD6 <- plotENSTExp('ENST00000614778', 'ENST00000264933', Mel_GTEx_exp, Mel_TCGA_met_exp, Mel_TuPro_exp)
-#ggplot(PDCD6, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
 
 PDCD6_dMDTspec <- plotENSTExp2('ENST00000614778', 'ENST00000264933', Mel_GTEx_exp, Mel_TCGA_met_exp, Mel_TuPro_exp, dMDT_Melanoma_tcga_metastatis, dMDT_Melanoma_tupro)
 
@@ -184,12 +178,8 @@ ggplot(USP_dMDTspec, aes(x=data, y=Exp, fill=Cohort)) + geom_boxplot() + theme_c
 
 # SLC44A2 in Ovary
 ```{r slc44a2}
-#SLC44A2 <- plotENSTExp('ENST00000335757', 'ENST00000407327', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp)
-#ggplot(SLC44A2, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
-
 
 SLC44A2_dMDTspec <- plotENSTExp2('ENST00000335757', 'ENST00000407327', Ov_GTEx_exp, Ov_TCGA_exp, Ov_TuPro_met_exp, dMDTs_Ovary_tcga, dMDT_Ovary_tuPro_metastatis)
-#ggplot(SLC44A2_dMDTspec, aes(x=data, y=expression)) + geom_boxplot() + theme_classic()
 
 SLC44A2_dMDTspec$data <- factor(SLC44A2_dMDTspec$data, levels = c('GTEx_MDT', 'GTEx_dMDT', 'TCGA_MDT', 'TCGA_dMDT', 'TuPro_MDT', 'TuPro_dMDT'))
 
